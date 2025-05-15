@@ -293,9 +293,10 @@ def format_comparison_table_with_risk(text, risk_analysis):
             category_risk = None
             if risk_analysis and 'categories' in risk_analysis:
                 for cat in risk_analysis['categories']:
-                    if cat['name'].lower() == category.lower():
-                        category_risk = cat
-                        break
+                    if isinstance(cat, dict) and 'name' in cat:
+                        if cat['name'].lower() == category.lower():
+                            category_risk = cat
+                            break
             
             # Split content into contract1 and contract2 parts
             parts = re.split(r'#### (Contract 1|Contract 2)(?:\n|$)', content)
@@ -304,14 +305,34 @@ def format_comparison_table_with_risk(text, risk_analysis):
                 # Add risk indicators if available
                 risk_indicators = ""
                 if category_risk:
-                    risk_c1 = category_risk.get('contract1_risk', 'medium')
-                    risk_c2 = category_risk.get('contract2_risk', 'medium')
-                    
-                    risk_c1_html = f"<span class='risk-{risk_c1.lower()}'>{risk_c1.upper()}</span>"
-                    risk_c2_html = f"<span class='risk-{risk_c2.lower()}'>{risk_c2.upper()}</span>"
-                    
-                    html_output += f"<tr class='category-header'><th colspan='2'>{category}</th></tr>"
-                    html_output += f"<tr><th>Contract 1 {risk_c1_html}</th><th>Contract 2 {risk_c2_html}</th></tr>"
+                    try:
+                        risk_c1 = category_risk.get('contract1_risk', 'medium')
+                        risk_c2 = category_risk.get('contract2_risk', 'medium')
+                        
+                        # Ensure risk levels are valid strings
+                        if not isinstance(risk_c1, str):
+                            risk_c1 = 'medium'
+                        if not isinstance(risk_c2, str):
+                            risk_c2 = 'medium'
+                        
+                        # Normalize risk levels to lower case
+                        risk_c1 = risk_c1.lower()
+                        risk_c2 = risk_c2.lower()
+                        
+                        # Validate risk levels
+                        valid_risks = ['high', 'medium', 'low', 'favorable']
+                        risk_c1 = risk_c1 if risk_c1 in valid_risks else 'medium'
+                        risk_c2 = risk_c2 if risk_c2 in valid_risks else 'medium'
+                        
+                        risk_c1_html = f"<span class='risk-{risk_c1}'>{risk_c1.upper()}</span>"
+                        risk_c2_html = f"<span class='risk-{risk_c2}'>{risk_c2.upper()}</span>"
+                        
+                        html_output += f"<tr class='category-header'><th colspan='2'>{category}</th></tr>"
+                        html_output += f"<tr><th>Contract 1 {risk_c1_html}</th><th>Contract 2 {risk_c2_html}</th></tr>"
+                    except Exception as e:
+                        # Fall back to simple header without risk indicators
+                        html_output += f"<tr class='category-header'><th colspan='2'>{category}</th></tr>"
+                        html_output += "<tr><th>Contract 1</th><th>Contract 2</th></tr>"
                 else:
                     html_output += f"<tr class='category-header'><th colspan='2'>{category}</th></tr>"
                     html_output += "<tr><th>Contract 1</th><th>Contract 2</th></tr>"
@@ -330,25 +351,49 @@ def format_comparison_table_with_risk(text, risk_analysis):
                         
                         # Process risk tags if they exist in the content
                         if category_risk:
-                            # Look for any specific clauses with risk tags
-                            if contract_type == "Contract 1" and 'contract1_clauses' in category_risk:
-                                for clause in category_risk['contract1_clauses']:
-                                    clause_text = clause['text']
-                                    risk_level = clause['risk']
-                                    # Replace the clause text with a risk-highlighted version
-                                    contract_content = contract_content.replace(
-                                        f"- {clause_text}", 
-                                        f"- <span class='risk-{risk_level.lower()}'>{clause_text}</span>"
-                                    )
-                            elif contract_type == "Contract 2" and 'contract2_clauses' in category_risk:
-                                for clause in category_risk['contract2_clauses']:
-                                    clause_text = clause['text']
-                                    risk_level = clause['risk']
-                                    # Replace the clause text with a risk-highlighted version
-                                    contract_content = contract_content.replace(
-                                        f"- {clause_text}", 
-                                        f"- <span class='risk-{risk_level.lower()}'>{clause_text}</span>"
-                                    )
+                            try:
+                                # Look for any specific clauses with risk tags
+                                if contract_type == "Contract 1" and 'contract1_clauses' in category_risk:
+                                    clauses = category_risk['contract1_clauses']
+                                    if isinstance(clauses, list):
+                                        for clause in clauses:
+                                            if isinstance(clause, dict) and 'text' in clause and 'risk' in clause:
+                                                clause_text = clause['text']
+                                                risk_level = clause['risk']
+                                                
+                                                # Validate risk level
+                                                if not isinstance(risk_level, str):
+                                                    risk_level = 'medium'
+                                                risk_level = risk_level.lower()
+                                                risk_level = risk_level if risk_level in valid_risks else 'medium'
+                                                
+                                                # Replace the clause text with a risk-highlighted version
+                                                contract_content = contract_content.replace(
+                                                    f"- {clause_text}", 
+                                                    f"- <span class='risk-{risk_level}'>{clause_text}</span>"
+                                                )
+                                elif contract_type == "Contract 2" and 'contract2_clauses' in category_risk:
+                                    clauses = category_risk['contract2_clauses']
+                                    if isinstance(clauses, list):
+                                        for clause in clauses:
+                                            if isinstance(clause, dict) and 'text' in clause and 'risk' in clause:
+                                                clause_text = clause['text']
+                                                risk_level = clause['risk']
+                                                
+                                                # Validate risk level
+                                                if not isinstance(risk_level, str):
+                                                    risk_level = 'medium'
+                                                risk_level = risk_level.lower()
+                                                risk_level = risk_level if risk_level in valid_risks else 'medium'
+                                                
+                                                # Replace the clause text with a risk-highlighted version
+                                                contract_content = contract_content.replace(
+                                                    f"- {clause_text}", 
+                                                    f"- <span class='risk-{risk_level}'>{clause_text}</span>"
+                                                )
+                            except Exception as e:
+                                # If there's an error processing risk tags, just continue without them
+                                pass
                         
                         # Convert bullet points to HTML lists
                         contract_content = re.sub(r'(?:^|\n)- (.*?)(?:$|\n)', 
@@ -381,17 +426,29 @@ def create_executive_summary(analysis_result, risk_analysis, contract1_name, con
     if not risk_analysis:
         return "<div class='exec-summary'><h3>Executive Summary</h3><p>Risk analysis data not available. Please rerun the comparison.</p></div>"
     
-    # Get overall scores
-    c1_score = risk_analysis.get('contract1_overall_score', 70)
-    c2_score = risk_analysis.get('contract2_overall_score', 70)
+    # Get overall scores and ensure they are integers
+    try:
+        c1_score = int(risk_analysis.get('contract1_overall_score', 70))
+    except (ValueError, TypeError):
+        c1_score = 70
+        
+    try:
+        c2_score = int(risk_analysis.get('contract2_overall_score', 70))
+    except (ValueError, TypeError):
+        c2_score = 70
     
     # Determine letter grades
     def get_letter_grade(score):
-        if score >= 90: return "A"
-        elif score >= 80: return "B"
-        elif score >= 70: return "C"
-        elif score >= 60: return "D"
-        else: return "F"
+        try:
+            score_num = int(score)
+            if score_num >= 90: return "A"
+            elif score_num >= 80: return "B"
+            elif score_num >= 70: return "C"
+            elif score_num >= 60: return "D"
+            else: return "F"
+        except (ValueError, TypeError):
+            # Default to C if score cannot be converted to int
+            return "C"
     
     c1_grade = get_letter_grade(c1_score)
     c2_grade = get_letter_grade(c2_score)
@@ -402,18 +459,20 @@ def create_executive_summary(analysis_result, risk_analysis, contract1_name, con
     c2_advantages = risk_analysis.get('contract2_advantages', ['No specific advantages identified'])
     c2_disadvantages = risk_analysis.get('contract2_disadvantages', ['No specific disadvantages identified'])
     
-    # Ensure lists are not empty
-    if not c1_advantages:
+    # Ensure lists are not empty and are actual lists
+    if not c1_advantages or not isinstance(c1_advantages, list):
         c1_advantages = ['No specific advantages identified']
-    if not c1_disadvantages:
+    if not c1_disadvantages or not isinstance(c1_disadvantages, list):
         c1_disadvantages = ['No specific disadvantages identified']
-    if not c2_advantages:
+    if not c2_advantages or not isinstance(c2_advantages, list):
         c2_advantages = ['No specific advantages identified']
-    if not c2_disadvantages:
+    if not c2_disadvantages or not isinstance(c2_disadvantages, list):
         c2_disadvantages = ['No specific disadvantages identified']
     
     # Get recommendations
     recommendation = risk_analysis.get('recommendation', 'Further detailed analysis recommended.')
+    if not recommendation or not isinstance(recommendation, str):
+        recommendation = 'Further detailed analysis recommended.'
     
     # Create the summary HTML
     html = f"""

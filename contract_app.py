@@ -604,68 +604,17 @@ def format_enhanced_comparison(text, risk_analysis, show_diff_only=False):
     view_controls = """
     <div class="view-controls">
         <div class="view-control-group">
-            <span class="view-control-label">View Mode:</span>
-            <select id="view-toggle" onchange="toggleViewMode(this.value)">
+            <span class="view-control-label">View:</span>
+            <select id="view-toggle">
                 <option value="full">Show All Content</option>
                 <option value="differences">Show Differences Only</option>
             </select>
         </div>
         <div class="view-control-group">
-            <span class="view-control-label">Sections:</span>
-            <button onclick="expandAllSections()">Expand All</button>
-            <button onclick="collapseAllSections()">Collapse All</button>
+            <button id="expand-all-btn">Expand All</button>
+            <button id="collapse-all-btn">Collapse All</button>
         </div>
     </div>
-    
-    <script>
-    function toggleViewMode(mode) {
-        const diffCommon = document.querySelectorAll('.diff-common');
-        if (mode === 'differences') {
-            diffCommon.forEach(el => el.style.display = 'none');
-        } else {
-            diffCommon.forEach(el => el.style.display = '');
-        }
-    }
-    
-    function expandAllSections() {
-        document.querySelectorAll('.section-content').forEach(section => {
-            section.style.display = 'table-row';
-        });
-    }
-    
-    function collapseAllSections() {
-        document.querySelectorAll('.section-content').forEach(section => {
-            section.style.display = 'none';
-        });
-    }
-    
-    function toggleSection(sectionId) {
-        const section = document.getElementById(sectionId);
-        if (section.style.display === 'none') {
-            section.style.display = 'table-row';
-        } else {
-            section.style.display = 'none';
-        }
-    }
-    
-    // Synchronized scrolling
-    document.addEventListener('DOMContentLoaded', function() {
-        const leftPanes = document.querySelectorAll('.left-pane');
-        const rightPanes = document.querySelectorAll('.right-pane');
-        
-        leftPanes.forEach((pane, index) => {
-            pane.addEventListener('scroll', function() {
-                rightPanes[index].scrollTop = this.scrollTop;
-            });
-        });
-        
-        rightPanes.forEach((pane, index) => {
-            pane.addEventListener('scroll', function() {
-                leftPanes[index].scrollTop = this.scrollTop;
-            });
-        });
-    });
-    </script>
     """
     
     html_output = view_controls + "<table class='comparison-table'>"
@@ -716,16 +665,16 @@ def format_enhanced_comparison(text, risk_analysis, show_diff_only=False):
                         risk_c2_html = f"<span class='risk-{risk_c2}'>{risk_c2.upper()}</span>"
                         
                         # Add expandable section header
-                        html_output += f"""<tr class='category-header' onclick="toggleSection('{section_id}')">
+                        html_output += f"""<tr class='category-header' data-section="{section_id}">
                                           <th colspan='2'>{category} <span style="float:right;">▼</span></th></tr>
                                           <tr><th>Contract 1 {risk_c1_html}</th><th>Contract 2 {risk_c2_html}</th></tr>"""
                     except Exception as e:
                         # Fall back to simple header without risk indicators
-                        html_output += f"""<tr class='category-header' onclick="toggleSection('{section_id}')">
+                        html_output += f"""<tr class='category-header' data-section="{section_id}">
                                          <th colspan='2'>{category} <span style="float:right;">▼</span></th></tr>
                                          <tr><th>Contract 1</th><th>Contract 2</th></tr>"""
                 else:
-                    html_output += f"""<tr class='category-header' onclick="toggleSection('{section_id}')">
+                    html_output += f"""<tr class='category-header' data-section="{section_id}">
                                      <th colspan='2'>{category} <span style="float:right;">▼</span></th></tr>
                                      <tr><th>Contract 1</th><th>Contract 2</th></tr>"""
                 
@@ -852,7 +801,7 @@ def format_enhanced_comparison(text, risk_analysis, show_diff_only=False):
                 
                 content = re.sub(r'(?:^|\n)- (.*?)(?:$|\n)', r'\n<li>\1</li>', content)
                 content = f"<ul class='comparison-list'>{content}</ul>"
-                html_output += f"<tr class='category-header' onclick=\"toggleSection('{section_id}')\"><th colspan='2'>{category} <span style=\"float:right;\">▼</span></th></tr>"
+                html_output += f"<tr class='category-header' data-section='{section_id}'><th colspan='2'>{category} <span style=\"float:right;\">▼</span></th></tr>"
                 html_output += f"<tr id='{section_id}' class='section-content'><td colspan='2'>{content}</td></tr>"
     
     html_output += "</table>"
@@ -1257,61 +1206,102 @@ def main():
             # Process and display the enhanced comparison with interactive features
             st.markdown("### Interactive Comparison")
             
-            # Display options for the view
-            view_options = st.radio("View Mode:", ("Full Comparison with Differences", "Risk Assessment Only"), horizontal=True)
+            # Process and display the comparison in a table format with enhanced features
+            formatted_comparison = format_enhanced_comparison(
+                analysis['result'], 
+                analysis.get('risk_analysis')
+            )
+            st.markdown(formatted_comparison, unsafe_allow_html=True)
             
-            if view_options == "Full Comparison with Differences":
-                # Process and display the comparison in a table format with enhanced features
-                formatted_comparison = format_enhanced_comparison(
-                    analysis['result'], 
-                    analysis.get('risk_analysis')
-                )
-                st.markdown(formatted_comparison, unsafe_allow_html=True)
-            else:
-                # Show only the risk assessment aspects
-                st.markdown("## Risk Assessment Details")
-                
-                if 'risk_analysis' in analysis and analysis['risk_analysis']:
-                    risk_data = analysis['risk_analysis']
+            # Add the JavaScript for interactive features separately to ensure it's properly loaded
+            st.markdown("""
+            <script type="text/javascript">
+                // Wait for the DOM to be fully loaded
+                document.addEventListener('DOMContentLoaded', function() {
+                    // Set up the view toggle functionality
+                    function toggleViewMode(mode) {
+                        const diffCommon = document.querySelectorAll('.diff-common');
+                        if (mode === 'differences') {
+                            diffCommon.forEach(el => el.style.display = 'none');
+                        } else {
+                            diffCommon.forEach(el => el.style.display = '');
+                        }
+                    }
                     
-                    # Display risk analysis for each category
-                    for category in risk_data.get('categories', []):
-                        with st.expander(f"{category['name']} - Contract 1: {category['contract1_risk'].upper()}, Contract 2: {category['contract2_risk'].upper()}"):
-                            col1, col2 = st.columns(2)
-                            
-                            with col1:
-                                st.markdown(f"### {analysis['contract1_name']}")
-                                st.markdown(f"**Risk Level:** {category['contract1_risk'].upper()}")
-                                
-                                if 'contract1_clauses' in category:
-                                    st.markdown("#### Key Risk Points:")
-                                    for clause in category['contract1_clauses']:
-                                        risk_color = {
-                                            'high': 'red',
-                                            'medium': 'orange',
-                                            'low': 'green',
-                                            'favorable': 'blue'
-                                        }.get(clause['risk'].lower(), 'grey')
-                                        
-                                        st.markdown(f"- <span style='color:{risk_color};font-weight:bold;'>[{clause['risk'].upper()}]</span> {clause['text']}", unsafe_allow_html=True)
-                            
-                            with col2:
-                                st.markdown(f"### {analysis['contract2_name']}")
-                                st.markdown(f"**Risk Level:** {category['contract2_risk'].upper()}")
-                                
-                                if 'contract2_clauses' in category:
-                                    st.markdown("#### Key Risk Points:")
-                                    for clause in category['contract2_clauses']:
-                                        risk_color = {
-                                            'high': 'red',
-                                            'medium': 'orange',
-                                            'low': 'green',
-                                            'favorable': 'blue'
-                                        }.get(clause['risk'].lower(), 'grey')
-                                        
-                                        st.markdown(f"- <span style='color:{risk_color};font-weight:bold;'>[{clause['risk'].upper()}]</span> {clause['text']}", unsafe_allow_html=True)
-                else:
-                    st.error("No risk assessment data available for this comparison.")
+                    // Add event listener to the view toggle dropdown
+                    const viewToggle = document.getElementById('view-toggle');
+                    if (viewToggle) {
+                        viewToggle.addEventListener('change', function() {
+                            toggleViewMode(this.value);
+                        });
+                    }
+                    
+                    // Setup collapsible sections
+                    function toggleSection(sectionId) {
+                        const section = document.getElementById(sectionId);
+                        if (section) {
+                            if (section.style.display === 'none') {
+                                section.style.display = 'table-row';
+                            } else {
+                                section.style.display = 'none';
+                            }
+                        }
+                    }
+                    
+                    // Add click listeners to all section headers
+                    document.querySelectorAll('.category-header').forEach(header => {
+                        header.addEventListener('click', function() {
+                            const sectionId = this.getAttribute('data-section');
+                            toggleSection(sectionId);
+                        });
+                    });
+                    
+                    // Functions to expand and collapse all sections
+                    function expandAllSections() {
+                        document.querySelectorAll('.section-content').forEach(section => {
+                            section.style.display = 'table-row';
+                        });
+                    }
+                    
+                    function collapseAllSections() {
+                        document.querySelectorAll('.section-content').forEach(section => {
+                            section.style.display = 'none';
+                        });
+                    }
+                    
+                    // Add listeners to expand/collapse buttons
+                    const expandAllBtn = document.getElementById('expand-all-btn');
+                    if (expandAllBtn) {
+                        expandAllBtn.addEventListener('click', expandAllSections);
+                    }
+                    
+                    const collapseAllBtn = document.getElementById('collapse-all-btn');
+                    if (collapseAllBtn) {
+                        collapseAllBtn.addEventListener('click', collapseAllSections);
+                    }
+                    
+                    // Setup synchronized scrolling
+                    const leftPanes = document.querySelectorAll('.left-pane');
+                    const rightPanes = document.querySelectorAll('.right-pane');
+                    
+                    leftPanes.forEach((pane, index) => {
+                        pane.addEventListener('scroll', function() {
+                            if (index < rightPanes.length) {
+                                rightPanes[index].scrollTop = this.scrollTop;
+                            }
+                        });
+                    });
+                    
+                    rightPanes.forEach((pane, index) => {
+                        pane.addEventListener('scroll', function() {
+                            if (index < leftPanes.length) {
+                                leftPanes[index].scrollTop = this.scrollTop;
+                            }
+                        });
+                    });
+                });
+            </script>
+            """, unsafe_allow_html=True)
             
             # Download buttons for the comparison and risk assessment
             col1, col2 = st.columns(2)

@@ -9,9 +9,6 @@ from PyPDF2 import PdfReader
 import docx
 from datetime import datetime
 import hmac
-import matplotlib.pyplot as plt
-import numpy as np
-import altair as alt
 import json
 
 def check_password():
@@ -76,8 +73,9 @@ st.markdown("""
     .risk-favorable { background-color: #bbdefb; color: #0d47a1; padding: 0.2rem 0.5rem; border-radius: 3px; font-weight: bold; }
     
     /* Text diff highlighting */
-    .diff-added { background-color: #e6ffed; text-decoration: none; padding: 0.1rem 0.2rem; }
-    .diff-removed { background-color: #ffeef0; text-decoration: line-through; padding: 0.1rem 0.2rem; }
+    .diff-added { background-color: #e6ffed; text-decoration: none; padding: 0.1rem 0.2rem; border-radius: 2px; }
+    .diff-removed { background-color: #ffeef0; text-decoration: line-through; padding: 0.1rem 0.2rem; border-radius: 2px; }
+    .diff-changed { background-color: #fff9c4; padding: 0.1rem 0.2rem; border-radius: 2px; }
     .diff-common { }
     
     /* Enhanced comparison table - Light mode */
@@ -94,6 +92,9 @@ st.markdown("""
         padding: 0.75rem; 
         border: 1px solid #e0e0e0;
         font-weight: bold;
+        position: sticky;
+        top: 0;
+        z-index: 1;
     }
     .comparison-table td { 
         padding: 0.75rem; 
@@ -106,6 +107,15 @@ st.markdown("""
     .comparison-table .category-header {
         background-color: #e6f0ff;
         font-weight: bold;
+        cursor: pointer;
+    }
+    .comparison-table .category-header:hover {
+        background-color: #d1e6ff;
+    }
+    
+    /* Collapsible sections */
+    .collapsed {
+        display: none;
     }
     
     /* Side by side comparison styling - Light mode */
@@ -132,6 +142,63 @@ st.markdown("""
         padding-bottom: 0.25rem;
         border-bottom: 1px solid #eaeaea;
         color: #2c3e50;
+    }
+    
+    /* Synchronized scrolling container */
+    .sync-scroll-container {
+        display: flex;
+        width: 100%;
+        overflow-x: hidden;
+        margin-bottom: 1rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 5px;
+    }
+    .sync-scroll-pane {
+        flex: 1;
+        overflow-x: auto;
+        padding: 1rem;
+        border-right: 1px solid #e0e0e0;
+        max-height: 600px;
+        scroll-behavior: smooth;
+    }
+    .sync-scroll-pane:last-child {
+        border-right: none;
+    }
+    .sync-scroll-pane::-webkit-scrollbar {
+        height: 8px;
+        width: 8px;
+    }
+    .sync-scroll-pane::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+    .sync-scroll-pane::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+    }
+    .sync-scroll-pane::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+    
+    /* Toggle controls */
+    .view-controls {
+        background-color: #f8f9fa;
+        padding: 0.75rem;
+        border-radius: 5px;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .view-control-label {
+        margin-right: 0.5rem;
+        font-weight: bold;
+    }
+    .view-control-group {
+        display: flex;
+        align-items: center;
+        margin-right: 1rem;
     }
     
     /* List styling */
@@ -275,6 +342,9 @@ st.markdown("""
         .diff-removed { 
             background-color: rgba(220, 38, 38, 0.2); 
         }
+        .diff-changed { 
+            background-color: rgba(245, 158, 11, 0.2); 
+        }
         
         /* Enhanced comparison table - Dark mode */
         .comparison-table { 
@@ -296,6 +366,9 @@ st.markdown("""
             background-color: #1f2937;
             color: #e5e7eb;
         }
+        .comparison-table .category-header:hover {
+            background-color: #2d3748;
+        }
         
         /* Side by side comparison styling - Dark mode */
         .side-by-side .contract-col {
@@ -308,6 +381,30 @@ st.markdown("""
         }
         .category-title {
             border-bottom: 1px solid #30363d;
+            color: #e5e7eb;
+        }
+        
+        /* Synchronized scrolling - Dark mode */
+        .sync-scroll-container {
+            border: 1px solid #30363d;
+        }
+        .sync-scroll-pane {
+            border-right: 1px solid #30363d;
+            background-color: #0d1117;
+        }
+        .sync-scroll-pane::-webkit-scrollbar-track {
+            background: #161b22;
+        }
+        .sync-scroll-pane::-webkit-scrollbar-thumb {
+            background: #30363d;
+        }
+        .sync-scroll-pane::-webkit-scrollbar-thumb:hover {
+            background: #4d5566;
+        }
+        
+        /* Toggle controls - Dark mode */
+        .view-controls {
+            background-color: #1f2937;
             color: #e5e7eb;
         }
         
@@ -367,6 +464,56 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# JavaScript for enhanced interactive features
+st.markdown("""
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Collapsible sections
+    const categoryHeaders = document.querySelectorAll('.category-header');
+    categoryHeaders.forEach(header => {
+        header.addEventListener('click', function() {
+            const contentRows = [];
+            let next = this.nextElementSibling;
+            while (next && !next.classList.contains('category-header')) {
+                contentRows.push(next);
+                next = next.nextElementSibling;
+            }
+            
+            contentRows.forEach(row => {
+                row.classList.toggle('collapsed');
+            });
+        });
+    });
+    
+    // Synchronized scrolling
+    const syncScrollPanes = document.querySelectorAll('.sync-scroll-pane');
+    syncScrollPanes.forEach(pane => {
+        pane.addEventListener('scroll', function() {
+            const scrollPosition = this.scrollTop;
+            syncScrollPanes.forEach(otherPane => {
+                if (otherPane !== this) {
+                    otherPane.scrollTop = scrollPosition;
+                }
+            });
+        });
+    });
+    
+    // Toggle view modes
+    const viewToggle = document.getElementById('view-toggle');
+    if (viewToggle) {
+        viewToggle.addEventListener('change', function() {
+            const allElements = document.querySelectorAll('.diff-common');
+            if (this.value === 'differences') {
+                allElements.forEach(el => el.style.display = 'none');
+            } else {
+                allElements.forEach(el => el.style.display = '');
+            }
+        });
+    }
+});
+</script>
+""", unsafe_allow_html=True)
+
 # Extract text functions
 def extract_text(file):
     """Extract text from various file formats."""
@@ -392,9 +539,59 @@ def extract_text(file):
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
-def format_comparison_table_with_risk(text, risk_analysis):
+def highlight_differences(text1, text2):
     """
-    Format the comparison text into an HTML table structure with risk assessment
+    Highlight differences between two text strings
+    Returns HTML-formatted text with differences highlighted
+    """
+    # Simple word-by-word diff highlighting
+    words1 = text1.split()
+    words2 = text2.split()
+    
+    result1 = []
+    result2 = []
+    
+    # Very simple diff algorithm
+    i, j = 0, 0
+    while i < len(words1) and j < len(words2):
+        if words1[i] == words2[j]:
+            result1.append(f'<span class="diff-common">{words1[i]}</span>')
+            result2.append(f'<span class="diff-common">{words2[j]}</span>')
+            i += 1
+            j += 1
+        elif i+1 < len(words1) and words1[i+1] == words2[j]:
+            # Word removed in text2
+            result1.append(f'<span class="diff-removed">{words1[i]}</span>')
+            i += 1
+        elif j+1 < len(words2) and words1[i] == words2[j+1]:
+            # Word added in text2
+            result2.append(f'<span class="diff-added">{words2[j]}</span>')
+            j += 1
+        else:
+            # Changed word
+            result1.append(f'<span class="diff-changed">{words1[i]}</span>')
+            result2.append(f'<span class="diff-changed">{words2[j]}</span>')
+            i += 1
+            j += 1
+    
+    # Add remaining words
+    while i < len(words1):
+        result1.append(f'<span class="diff-removed">{words1[i]}</span>')
+        i += 1
+    
+    while j < len(words2):
+        result2.append(f'<span class="diff-added">{words2[j]}</span>')
+        j += 1
+    
+    return ' '.join(result1), ' '.join(result2)
+
+def format_enhanced_comparison(text, risk_analysis, show_diff_only=False):
+    """
+    Format the comparison text into an enhanced HTML structure with:
+    - Risk assessment
+    - Diff highlighting
+    - Collapsible sections
+    - Side-by-side scrolling view
     """
     # Split the text into sections based on category headers
     sections = re.split(r'### (.*?)(?:\n|$)', text)
@@ -403,13 +600,82 @@ def format_comparison_table_with_risk(text, risk_analysis):
         # If no clear sections, just return formatted text
         return f"<div class='comparison-text'>{text}</div>"
     
-    html_output = "<table class='comparison-table'>"
+    # View controls HTML
+    view_controls = """
+    <div class="view-controls">
+        <div class="view-control-group">
+            <span class="view-control-label">View Mode:</span>
+            <select id="view-toggle" onchange="toggleViewMode(this.value)">
+                <option value="full">Show All Content</option>
+                <option value="differences">Show Differences Only</option>
+            </select>
+        </div>
+        <div class="view-control-group">
+            <span class="view-control-label">Sections:</span>
+            <button onclick="expandAllSections()">Expand All</button>
+            <button onclick="collapseAllSections()">Collapse All</button>
+        </div>
+    </div>
+    
+    <script>
+    function toggleViewMode(mode) {
+        const diffCommon = document.querySelectorAll('.diff-common');
+        if (mode === 'differences') {
+            diffCommon.forEach(el => el.style.display = 'none');
+        } else {
+            diffCommon.forEach(el => el.style.display = '');
+        }
+    }
+    
+    function expandAllSections() {
+        document.querySelectorAll('.section-content').forEach(section => {
+            section.style.display = 'table-row';
+        });
+    }
+    
+    function collapseAllSections() {
+        document.querySelectorAll('.section-content').forEach(section => {
+            section.style.display = 'none';
+        });
+    }
+    
+    function toggleSection(sectionId) {
+        const section = document.getElementById(sectionId);
+        if (section.style.display === 'none') {
+            section.style.display = 'table-row';
+        } else {
+            section.style.display = 'none';
+        }
+    }
+    
+    // Synchronized scrolling
+    document.addEventListener('DOMContentLoaded', function() {
+        const leftPanes = document.querySelectorAll('.left-pane');
+        const rightPanes = document.querySelectorAll('.right-pane');
+        
+        leftPanes.forEach((pane, index) => {
+            pane.addEventListener('scroll', function() {
+                rightPanes[index].scrollTop = this.scrollTop;
+            });
+        });
+        
+        rightPanes.forEach((pane, index) => {
+            pane.addEventListener('scroll', function() {
+                leftPanes[index].scrollTop = this.scrollTop;
+            });
+        });
+    });
+    </script>
+    """
+    
+    html_output = view_controls + "<table class='comparison-table'>"
     
     # Process each section
     for i in range(1, len(sections), 2):
         if i < len(sections):
             category = sections[i].strip()
             content = sections[i+1] if i+1 < len(sections) else ""
+            section_id = f"section-{i}"
             
             # Get risk assessment for this category if available
             category_risk = None
@@ -449,15 +715,19 @@ def format_comparison_table_with_risk(text, risk_analysis):
                         risk_c1_html = f"<span class='risk-{risk_c1}'>{risk_c1.upper()}</span>"
                         risk_c2_html = f"<span class='risk-{risk_c2}'>{risk_c2.upper()}</span>"
                         
-                        html_output += f"<tr class='category-header'><th colspan='2'>{category}</th></tr>"
-                        html_output += f"<tr><th>Contract 1 {risk_c1_html}</th><th>Contract 2 {risk_c2_html}</th></tr>"
+                        # Add expandable section header
+                        html_output += f"""<tr class='category-header' onclick="toggleSection('{section_id}')">
+                                          <th colspan='2'>{category} <span style="float:right;">▼</span></th></tr>
+                                          <tr><th>Contract 1 {risk_c1_html}</th><th>Contract 2 {risk_c2_html}</th></tr>"""
                     except Exception as e:
                         # Fall back to simple header without risk indicators
-                        html_output += f"<tr class='category-header'><th colspan='2'>{category}</th></tr>"
-                        html_output += "<tr><th>Contract 1</th><th>Contract 2</th></tr>"
+                        html_output += f"""<tr class='category-header' onclick="toggleSection('{section_id}')">
+                                         <th colspan='2'>{category} <span style="float:right;">▼</span></th></tr>
+                                         <tr><th>Contract 1</th><th>Contract 2</th></tr>"""
                 else:
-                    html_output += f"<tr class='category-header'><th colspan='2'>{category}</th></tr>"
-                    html_output += "<tr><th>Contract 1</th><th>Contract 2</th></tr>"
+                    html_output += f"""<tr class='category-header' onclick="toggleSection('{section_id}')">
+                                     <th colspan='2'>{category} <span style="float:right;">▼</span></th></tr>
+                                     <tr><th>Contract 1</th><th>Contract 2</th></tr>"""
                 
                 # Find the content for each contract
                 contract1_content = ""
@@ -517,17 +787,63 @@ def format_comparison_table_with_risk(text, risk_analysis):
                                 # If there's an error processing risk tags, just continue without them
                                 pass
                         
-                        # Convert bullet points to HTML lists
-                        contract_content = re.sub(r'(?:^|\n)- (.*?)(?:$|\n)', 
-                                                r'\n<li>\1</li>', contract_content)
-                        contract_content = f"<ul class='comparison-list'>{contract_content}</ul>"
+                        # Extract bullet points for better processing
+                        points = re.findall(r'(?:^|\n)- (.*?)(?:$|\n)', contract_content)
+                        processed_content = contract_content
                         
-                        if "Contract 1" in contract_type:
-                            contract1_content = contract_content
-                        elif "Contract 2" in contract_type:
-                            contract2_content = contract_content
+                        if contract_type == "Contract 1":
+                            contract1_content = processed_content
+                        elif contract_type == "Contract 2":
+                            contract2_content = processed_content
                 
-                html_output += f"<tr><td>{contract1_content}</td><td>{contract2_content}</td></tr>"
+                # Apply diff highlighting to bullet points
+                bullet_pattern = r'(?:^|\n)- (.*?)(?:$|\n)'
+                bullets1 = re.findall(bullet_pattern, contract1_content)
+                bullets2 = re.findall(bullet_pattern, contract2_content)
+                
+                # Process bullets to create HTML with diff highlighting
+                html_bullets1 = []
+                html_bullets2 = []
+                
+                # Process each bullet point pair if both contracts have bullet points
+                max_bullets = max(len(bullets1), len(bullets2))
+                for k in range(max_bullets):
+                    bullet1 = bullets1[k] if k < len(bullets1) else ""
+                    bullet2 = bullets2[k] if k < len(bullets2) else ""
+                    
+                    if bullet1 and bullet2:
+                        # Apply diff highlighting
+                        highlighted1, highlighted2 = highlight_differences(bullet1, bullet2)
+                        html_bullets1.append(f"<li>{highlighted1}</li>")
+                        html_bullets2.append(f"<li>{highlighted2}</li>")
+                    elif bullet1:
+                        # Only in contract 1
+                        html_bullets1.append(f"<li><span class='diff-removed'>{bullet1}</span></li>")
+                    elif bullet2:
+                        # Only in contract 2
+                        html_bullets2.append(f"<li><span class='diff-added'>{bullet2}</span></li>")
+                
+                # Replace the original content with HTML lists
+                contract1_html = f"<ul class='comparison-list'>{''.join(html_bullets1)}</ul>"
+                contract2_html = f"<ul class='comparison-list'>{''.join(html_bullets2)}</ul>"
+                
+                # Create synchronized scrolling container for the section content
+                scroll_container = f"""
+                <tr id="{section_id}" class="section-content">
+                    <td>
+                        <div class="sync-scroll-pane left-pane">
+                            {contract1_html}
+                        </div>
+                    </td>
+                    <td>
+                        <div class="sync-scroll-pane right-pane">
+                            {contract2_html}
+                        </div>
+                    </td>
+                </tr>
+                """
+                
+                html_output += scroll_container
             else:
                 # If no clear split between contracts, just show the content as is
                 
@@ -536,8 +852,8 @@ def format_comparison_table_with_risk(text, risk_analysis):
                 
                 content = re.sub(r'(?:^|\n)- (.*?)(?:$|\n)', r'\n<li>\1</li>', content)
                 content = f"<ul class='comparison-list'>{content}</ul>"
-                html_output += f"<tr class='category-header'><th colspan='2'>{category}</th></tr>"
-                html_output += f"<tr><td colspan='2'>{content}</td></tr>"
+                html_output += f"<tr class='category-header' onclick=\"toggleSection('{section_id}')\"><th colspan='2'>{category} <span style=\"float:right;\">▼</span></th></tr>"
+                html_output += f"<tr id='{section_id}' class='section-content'><td colspan='2'>{content}</td></tr>"
     
     html_output += "</table>"
     return html_output
@@ -655,72 +971,6 @@ def create_executive_summary(analysis_result, risk_analysis, contract1_name, con
     
     return html
 
-def create_score_card(risk_analysis, contract1_name, contract2_name):
-    """Generate a score card visualization from the risk analysis."""
-    
-    # Get scores for different dimensions
-    c1_dimensions = risk_analysis.get('contract1_dimension_scores', {})
-    c2_dimensions = risk_analysis.get('contract2_dimension_scores', {})
-    
-    # Create default dimensions if missing
-    if not c1_dimensions:
-        c1_dimensions = {
-            "Pricing": 70,
-            "Risk Allocation": 70,
-            "Service Levels": 70,
-            "Flexibility": 70,
-            "Legal Protection": 70
-        }
-    if not c2_dimensions:
-        c2_dimensions = {
-            "Pricing": 70,
-            "Risk Allocation": 70,
-            "Service Levels": 70,
-            "Flexibility": 70,
-            "Legal Protection": 70
-        }
-    
-    # Prepare data for the chart
-    categories = []
-    c1_scores = []
-    c2_scores = []
-    
-    # Ensure both dimension sets have the same categories
-    all_categories = set(list(c1_dimensions.keys()) + list(c2_dimensions.keys()))
-    
-    for cat in all_categories:
-        categories.append(cat)
-        c1_scores.append(c1_dimensions.get(cat, 70))  # Default to 70 if missing
-        c2_scores.append(c2_dimensions.get(cat, 70))  # Default to 70 if missing
-    
-    # Create chart data
-    chart_data = pd.DataFrame({
-        'Category': categories + categories,
-        'Score': c1_scores + c2_scores,
-        'Contract': [contract1_name] * len(categories) + [contract2_name] * len(categories)
-    })
-    
-    # Create the chart
-    try:
-        chart = alt.Chart(chart_data).mark_bar().encode(
-            x=alt.X('Category:N', title=None),
-            y=alt.Y('Score:Q', scale=alt.Scale(domain=[0, 100])),
-            color=alt.Color('Contract:N', scale=alt.Scale(
-                domain=[contract1_name, contract2_name],
-                range=['#1890ff', '#52c41a']
-            )),
-            tooltip=['Category', 'Score', 'Contract']
-        ).properties(
-            title='Comparison by Category',
-            width=600,
-            height=300
-        )
-        return chart
-    except Exception as e:
-        st.warning(f"Could not create chart: {str(e)}")
-        # Return a placeholder message
-        return "Chart generation failed. Please check the data format."
-
 def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus, custom_prompt):
     """Use Claude AI to compare contracts and generate insights with risk assessment."""
     
@@ -760,7 +1010,7 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
        - Key point 1
        - Key point 2
     
-    3. Directly compare equivalent clauses and terms between the contracts
+    3. Directly compare equivalent clauses and terms between the contracts - make sure each bullet point in Contract 1 has a corresponding bullet point in Contract 2 if possible
     4. Bold any significant differences or important terms
     5. For each topic, highlight strengths and weaknesses of each contract
     6. If one contract has a provision that the other lacks, explicitly note this
@@ -862,7 +1112,7 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
 def main():
     # App header
     st.markdown('<div class="title">ERP Contract Comparison Tool</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subtitle">Enhanced Side-by-Side Comparison with Risk Assessment</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle">Enhanced Side-by-Side Comparison with Interactive Features</div>', unsafe_allow_html=True)
     
     # Initialize session state
     if 'analysis_history' not in st.session_state:
@@ -888,12 +1138,14 @@ def main():
         
         st.markdown("## About")
         st.info("""
-        This tool creates side-by-side comparisons of ERP service contracts using Claude AI.
-        Select specific focus areas to generate a targeted comparison between contracts.
-        Results include:
+        This tool creates interactive side-by-side comparisons of ERP service contracts.
+        
+        Features include:
+        - Text difference highlighting between contracts
+        - Collapsible sections for easier navigation
+        - Interactive toggles to focus on differences
+        - Synchronized scrolling between contract sections
         - Risk assessment with color-coding
-        - Overall contract scoring
-        - Executive summary with key advantages and concerns
         """)
     
     # Main interface
@@ -938,7 +1190,7 @@ def main():
             st.error("You must select at least one focus area or provide custom analysis instructions")
         
         if analyze_button and contract1_file and contract2_file and (analysis_focus or custom_prompt):
-            with st.spinner("Creating enhanced comparison with risk assessment... This may take a moment..."):
+            with st.spinner("Creating enhanced comparison with interactive features... This may take a moment..."):
                 contract1_text = extract_text(contract1_file)
                 contract2_text = extract_text(contract2_file)
                 
@@ -989,14 +1241,6 @@ def main():
                     analysis['contract2_name']
                 )
                 st.markdown(exec_summary, unsafe_allow_html=True)
-                
-                # Create and display score card visualization
-                score_chart = create_score_card(
-                    analysis['risk_analysis'], 
-                    analysis['contract1_name'], 
-                    analysis['contract2_name']
-                )
-                st.altair_chart(score_chart, use_container_width=True)
             
             # Display comparison metadata
             metadata_col1, metadata_col2 = st.columns(2)
@@ -1010,12 +1254,15 @@ def main():
                 if analysis['custom_prompt']:
                     st.markdown(f"**Custom Instructions:** {analysis['custom_prompt']}")
             
-            # Toggle for viewing all content vs. just differences
-            view_mode = st.radio("View Mode:", ("Complete Comparison", "Risk Assessment Only"), horizontal=True)
+            # Process and display the enhanced comparison with interactive features
+            st.markdown("### Interactive Comparison")
             
-            if view_mode == "Complete Comparison":
-                # Process and display the comparison in a table format with risk assessment
-                formatted_comparison = format_comparison_table_with_risk(
+            # Display options for the view
+            view_options = st.radio("View Mode:", ("Full Comparison with Differences", "Risk Assessment Only"), horizontal=True)
+            
+            if view_options == "Full Comparison with Differences":
+                # Process and display the comparison in a table format with enhanced features
+                formatted_comparison = format_enhanced_comparison(
                     analysis['result'], 
                     analysis.get('risk_analysis')
                 )
@@ -1088,7 +1335,7 @@ def main():
                         mime="application/json"
                     )
         else:
-            st.info("Upload contracts and select focus areas to generate a side-by-side comparison with risk assessment")
+            st.info("Upload contracts and select focus areas to generate an interactive side-by-side comparison")
             
     # History Tab
     with tab3:

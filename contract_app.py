@@ -1203,105 +1203,154 @@ def main():
                 if analysis['custom_prompt']:
                     st.markdown(f"**Custom Instructions:** {analysis['custom_prompt']}")
             
-            # Process and display the enhanced comparison with interactive features
-            st.markdown("### Interactive Comparison")
-            
-            # Process and display the comparison in a table format with enhanced features
-            formatted_comparison = format_enhanced_comparison(
-                analysis['result'], 
-                analysis.get('risk_analysis')
-            )
-            st.markdown(formatted_comparison, unsafe_allow_html=True)
-            
-            # Add the JavaScript for interactive features separately to ensure it's properly loaded
-            st.markdown("""
-            <script type="text/javascript">
-                // Wait for the DOM to be fully loaded
-                document.addEventListener('DOMContentLoaded', function() {
-                    // Set up the view toggle functionality
-                    function toggleViewMode(mode) {
-                        const diffCommon = document.querySelectorAll('.diff-common');
-                        if (mode === 'differences') {
-                            diffCommon.forEach(el => el.style.display = 'none');
-                        } else {
-                            diffCommon.forEach(el => el.style.display = '');
-                        }
-                    }
+    # Process and display the enhanced comparison with interactive features
+    st.markdown("### Interactive Comparison")
+    
+    # Native Streamlit controls instead of JavaScript
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        diff_view = st.selectbox(
+            "View Mode:", 
+            ["Show All Content", "Show Differences Only"],
+            key="diff_view"
+        )
+    with col2:
+        st.write("&nbsp;")  # Spacer
+        sections_expanded = st.checkbox("Expand All Sections", value=True, key="expand_sections")
+    
+    # Process the comparison text into sections for Streamlit expanders
+    sections = re.split(r'### (.*?)(?:\n|$)', analysis['result'])
+    
+    if len(sections) > 1:
+        # For each section, create a Streamlit expander
+        for i in range(1, len(sections), 2):
+            if i < len(sections):
+                category = sections[i].strip()
+                content = sections[i+1] if i+1 < len(sections) else ""
+                
+                # Get risk assessment for this category if available
+                category_risk = None
+                risk_level_html = ""
+                if 'risk_analysis' in analysis and analysis['risk_analysis'] and 'categories' in analysis['risk_analysis']:
+                    for cat in analysis['risk_analysis']['categories']:
+                        if isinstance(cat, dict) and 'name' in cat:
+                            if cat['name'].lower() == category.lower():
+                                category_risk = cat
+                                # Add risk indicators if available
+                                try:
+                                    risk_c1 = cat.get('contract1_risk', 'medium').upper()
+                                    risk_c2 = cat.get('contract2_risk', 'medium').upper()
+                                    risk_level_html = f" - C1: {risk_c1}, C2: {risk_c2}"
+                                except:
+                                    pass
+                                break
+
+                # Create a Streamlit expander for each section
+                with st.expander(f"{category}{risk_level_html}", expanded=sections_expanded):
+                    # Split content into contract1 and contract2 parts
+                    parts = re.split(r'#### (Contract 1|Contract 2)(?:\n|$)', content)
                     
-                    // Add event listener to the view toggle dropdown
-                    const viewToggle = document.getElementById('view-toggle');
-                    if (viewToggle) {
-                        viewToggle.addEventListener('change', function() {
-                            toggleViewMode(this.value);
-                        });
-                    }
-                    
-                    // Setup collapsible sections
-                    function toggleSection(sectionId) {
-                        const section = document.getElementById(sectionId);
-                        if (section) {
-                            if (section.style.display === 'none') {
-                                section.style.display = 'table-row';
-                            } else {
-                                section.style.display = 'none';
-                            }
-                        }
-                    }
-                    
-                    // Add click listeners to all section headers
-                    document.querySelectorAll('.category-header').forEach(header => {
-                        header.addEventListener('click', function() {
-                            const sectionId = this.getAttribute('data-section');
-                            toggleSection(sectionId);
-                        });
-                    });
-                    
-                    // Functions to expand and collapse all sections
-                    function expandAllSections() {
-                        document.querySelectorAll('.section-content').forEach(section => {
-                            section.style.display = 'table-row';
-                        });
-                    }
-                    
-                    function collapseAllSections() {
-                        document.querySelectorAll('.section-content').forEach(section => {
-                            section.style.display = 'none';
-                        });
-                    }
-                    
-                    // Add listeners to expand/collapse buttons
-                    const expandAllBtn = document.getElementById('expand-all-btn');
-                    if (expandAllBtn) {
-                        expandAllBtn.addEventListener('click', expandAllSections);
-                    }
-                    
-                    const collapseAllBtn = document.getElementById('collapse-all-btn');
-                    if (collapseAllBtn) {
-                        collapseAllBtn.addEventListener('click', collapseAllSections);
-                    }
-                    
-                    // Setup synchronized scrolling
-                    const leftPanes = document.querySelectorAll('.left-pane');
-                    const rightPanes = document.querySelectorAll('.right-pane');
-                    
-                    leftPanes.forEach((pane, index) => {
-                        pane.addEventListener('scroll', function() {
-                            if (index < rightPanes.length) {
-                                rightPanes[index].scrollTop = this.scrollTop;
-                            }
-                        });
-                    });
-                    
-                    rightPanes.forEach((pane, index) => {
-                        pane.addEventListener('scroll', function() {
-                            if (index < leftPanes.length) {
-                                leftPanes[index].scrollTop = this.scrollTop;
-                            }
-                        });
-                    });
-                });
-            </script>
-            """, unsafe_allow_html=True)
+                    if len(parts) > 2:  # We have proper split between contracts
+                        # Side-by-side columns for contract comparison
+                        col1, col2 = st.columns(2)
+                        
+                        for j in range(1, len(parts), 2):
+                            if j < len(parts):
+                                contract_type = parts[j].strip()
+                                contract_content = parts[j+1] if j+1 < len(parts) else ""
+                                
+                                # Process risk tags if they exist in the content
+                                if category_risk:
+                                    try:
+                                        # Look for any specific clauses with risk tags
+                                        if contract_type == "Contract 1" and 'contract1_clauses' in category_risk:
+                                            clauses = category_risk['contract1_clauses']
+                                            if isinstance(clauses, list):
+                                                for clause in clauses:
+                                                    if isinstance(clause, dict) and 'text' in clause and 'risk' in clause:
+                                                        clause_text = clause['text']
+                                                        risk_level = clause['risk']
+                                                        
+                                                        # Add risk highlight using Streamlit markdown
+                                                        contract_content = contract_content.replace(
+                                                            f"- {clause_text}", 
+                                                            f"- **[{risk_level.upper()}]** {clause_text}"
+                                                        )
+                                        elif contract_type == "Contract 2" and 'contract2_clauses' in category_risk:
+                                            clauses = category_risk['contract2_clauses']
+                                            if isinstance(clauses, list):
+                                                for clause in clauses:
+                                                    if isinstance(clause, dict) and 'text' in clause and 'risk' in clause:
+                                                        clause_text = clause['text']
+                                                        risk_level = clause['risk']
+                                                        
+                                                        # Add risk highlight using Streamlit markdown
+                                                        contract_content = contract_content.replace(
+                                                            f"- {clause_text}", 
+                                                            f"- **[{risk_level.upper()}]** {clause_text}"
+                                                        )
+                                    except Exception as e:
+                                        # If there's an error processing risk tags, just continue without them
+                                        pass
+                                
+                                # Display contract in the appropriate column
+                                if contract_type == "Contract 1":
+                                    with col1:
+                                        st.markdown(f"### {analysis['contract1_name']}")
+                                        st.markdown(contract_content)
+                                elif contract_type == "Contract 2":
+                                    with col2:
+                                        st.markdown(f"### {analysis['contract2_name']}")
+                                        st.markdown(contract_content)
+                    else:
+                        # If no clear split between contracts, just show the content as is
+                        st.markdown(content)
+                
+                # Add a visual diff comparison section if selected
+                if diff_view == "Show Differences Only":
+                    with st.expander("🔍 View Text Differences", expanded=True):
+                        # Extract bullet points from both contracts
+                        parts = re.split(r'#### (Contract 1|Contract 2)(?:\n|$)', content)
+                        
+                        contract1_content = ""
+                        contract2_content = ""
+                        
+                        for j in range(1, len(parts), 2):
+                            if j < len(parts):
+                                contract_type = parts[j].strip()
+                                if contract_type == "Contract 1":
+                                    contract1_content = parts[j+1] if j+1 < len(parts) else ""
+                                elif contract_type == "Contract 2":
+                                    contract2_content = parts[j+1] if j+1 < len(parts) else ""
+                        
+                        # Extract bullet points
+                        bullet_pattern = r'(?:^|\n)- (.*?)(?:$|\n)'
+                        bullets1 = re.findall(bullet_pattern, contract1_content)
+                        bullets2 = re.findall(bullet_pattern, contract2_content)
+                        
+                        # Display differences
+                        diff_col1, diff_col2 = st.columns(2)
+                        
+                        with diff_col1:
+                            st.markdown(f"#### Unique to {analysis['contract1_name']}")
+                            unique_to_1 = [b for b in bullets1 if b not in bullets2]
+                            if unique_to_1:
+                                for bullet in unique_to_1:
+                                    st.markdown(f"- 🔴 {bullet}")
+                            else:
+                                st.markdown("*No unique points*")
+                                
+                        with diff_col2:
+                            st.markdown(f"#### Unique to {analysis['contract2_name']}")
+                            unique_to_2 = [b for b in bullets2 if b not in bullets1]
+                            if unique_to_2:
+                                for bullet in unique_to_2:
+                                    st.markdown(f"- 🟢 {bullet}")
+                            else:
+                                st.markdown("*No unique points*")
+    else:
+        # If no section found, display the raw text
+        st.markdown(analysis['result'])
             
             # Download buttons for the comparison and risk assessment
             col1, col2 = st.columns(2)

@@ -49,7 +49,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS for better styling with enhanced color coding, visualization, and dark mode support
+# CSS for better styling with enhanced color coding and visualization
 st.markdown("""
 <style>
     .main { padding: 2rem; }
@@ -71,151 +71,6 @@ st.markdown("""
     .risk-medium { background-color: #fff9c4; color: #f57f17; padding: 0.2rem 0.5rem; border-radius: 3px; font-weight: bold; }
     .risk-low { background-color: #dcedc8; color: #33691e; padding: 0.2rem 0.5rem; border-radius: 3px; font-weight: bold; }
     .risk-favorable { background-color: #bbdefb; color: #0d47a1; padding: 0.2rem 0.5rem; border-radius: 3px; font-weight: bold; }
-    
-    /* Text diff highlighting */
-    .diff-added { background-color: #e6ffed; text-decoration: none; padding: 0.1rem 0.2rem; border-radius: 2px; }
-    .diff-removed { background-color: #ffeef0; text-decoration: line-through; padding: 0.1rem 0.2rem; border-radius: 2px; }
-    .diff-changed { background-color: #fff9c4; padding: 0.1rem 0.2rem; border-radius: 2px; }
-    .diff-common { }
-    
-    /* Enhanced comparison table - Light mode */
-    .comparison-table { 
-        width: 100%; 
-        border-collapse: collapse; 
-        margin: 1rem 0; 
-        border: 1px solid #e0e0e0;
-        font-size: 0.95rem;
-    }
-    .comparison-table th { 
-        background-color: #f0f2f6; 
-        text-align: left; 
-        padding: 0.75rem; 
-        border: 1px solid #e0e0e0;
-        font-weight: bold;
-        position: sticky;
-        top: 0;
-        z-index: 1;
-    }
-    .comparison-table td { 
-        padding: 0.75rem; 
-        border: 1px solid #e0e0e0; 
-        vertical-align: top;
-    }
-    .comparison-table tr:nth-child(even) {
-        background-color: #f9f9f9;
-    }
-    .comparison-table .category-header {
-        background-color: #e6f0ff;
-        font-weight: bold;
-        cursor: pointer;
-    }
-    .comparison-table .category-header:hover {
-        background-color: #d1e6ff;
-    }
-    
-    /* Collapsible sections */
-    .collapsed {
-        display: none;
-    }
-    
-    /* Side by side comparison styling - Light mode */
-    .side-by-side {
-        display: flex;
-        margin-bottom: 1rem;
-    }
-    .side-by-side .contract-col {
-        flex: 1;
-        padding: 1rem;
-        border: 1px solid #e0e0e0;
-        border-radius: 5px;
-        margin: 0 0.5rem;
-    }
-    .side-by-side h3 {
-        margin-top: 0;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid #e0e0e0;
-    }
-    .category-title {
-        font-weight: bold;
-        font-size: 1.2rem;
-        margin: 1rem 0 0.5rem 0;
-        padding-bottom: 0.25rem;
-        border-bottom: 1px solid #eaeaea;
-        color: #2c3e50;
-    }
-    
-    /* Synchronized scrolling container */
-    .sync-scroll-container {
-        display: flex;
-        width: 100%;
-        overflow-x: hidden;
-        margin-bottom: 1rem;
-        border: 1px solid #e0e0e0;
-        border-radius: 5px;
-    }
-    .sync-scroll-pane {
-        flex: 1;
-        overflow-x: auto;
-        padding: 1rem;
-        border-right: 1px solid #e0e0e0;
-        max-height: 600px;
-        scroll-behavior: smooth;
-    }
-    .sync-scroll-pane:last-child {
-        border-right: none;
-    }
-    .sync-scroll-pane::-webkit-scrollbar {
-        height: 8px;
-        width: 8px;
-    }
-    .sync-scroll-pane::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 4px;
-    }
-    .sync-scroll-pane::-webkit-scrollbar-thumb {
-        background: #888;
-        border-radius: 4px;
-    }
-    .sync-scroll-pane::-webkit-scrollbar-thumb:hover {
-        background: #555;
-    }
-    
-    /* Toggle controls */
-    .view-controls {
-        background-color: #f8f9fa;
-        padding: 0.75rem;
-        border-radius: 5px;
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 1rem;
-    }
-    .view-control-label {
-        margin-right: 0.5rem;
-        font-weight: bold;
-    }
-    .view-control-group {
-        display: flex;
-        align-items: center;
-        margin-right: 1rem;
-    }
-    
-    /* List styling */
-    ul.comparison-list {
-        padding-left: 1.5rem;
-        margin-bottom: 1rem;
-    }
-    ul.comparison-list li {
-        margin-bottom: 0.5rem;
-        position: relative;
-    }
-    ul.comparison-list li:before {
-        content: "•";
-        position: absolute;
-        left: -1rem;
-        color: #1890ff;
-    }
     
     /* Executive summary styling - Light mode */
     .exec-summary {
@@ -248,68 +103,6 @@ st.markdown("""
     .score-d { background-color: #ffa000; }
     .score-f { background-color: #e64a19; }
     
-    /* Toggle and collapsible sections */
-    .toggle-header {
-        cursor: pointer;
-        padding: 0.75rem;
-        background-color: #f5f5f5;
-        border-radius: 4px;
-        margin: 0.5rem 0;
-        font-weight: bold;
-    }
-    .toggle-header:hover {
-        background-color: #e0e0e0;
-    }
-    .toggle-content {
-        padding: 0.75rem;
-        border: 1px solid #e0e0e0;
-        border-radius: 0 0 4px 4px;
-        margin-bottom: 0.75rem;
-    }
-    
-    /* Key findings in summary */
-    .key-finding {
-        font-weight: bold;
-        color: #1890ff;
-    }
-    .alert-warning {
-        color: #d63031;
-        font-weight: bold;
-    }
-    
-    /* Score card - Light mode */
-    .score-card {
-        background-color: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        padding: 1rem;
-        margin-bottom: 1rem;
-    }
-    .score-card-header {
-        font-size: 1.1rem;
-        font-weight: bold;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid #eaeaea;
-        margin-bottom: 0.75rem;
-    }
-    .score-card-metrics {
-        display: flex;
-        flex-wrap: wrap;
-    }
-    .score-metric {
-        flex: 1 0 30%;
-        margin: 0.35rem;
-        text-align: center;
-    }
-    .score-metric-value {
-        font-size: 1.5rem;
-        font-weight: bold;
-    }
-    .score-metric-label {
-        font-size: 0.8rem;
-        color: #666;
-    }
-    
     /* DARK MODE STYLES */
     @media (prefers-color-scheme: dark) {
         /* General dark mode adjustments */
@@ -335,79 +128,6 @@ st.markdown("""
             color: #3b82f6; 
         }
         
-        /* Text diff highlighting - Dark mode */
-        .diff-added { 
-            background-color: rgba(16, 185, 129, 0.2); 
-        }
-        .diff-removed { 
-            background-color: rgba(220, 38, 38, 0.2); 
-        }
-        .diff-changed { 
-            background-color: rgba(245, 158, 11, 0.2); 
-        }
-        
-        /* Enhanced comparison table - Dark mode */
-        .comparison-table { 
-            border: 1px solid #30363d;
-        }
-        .comparison-table th { 
-            background-color: #161b22; 
-            border: 1px solid #30363d;
-            color: #c9d1d9;
-        }
-        .comparison-table td { 
-            border: 1px solid #30363d; 
-            color: #c9d1d9;
-        }
-        .comparison-table tr:nth-child(even) {
-            background-color: #0d1117;
-        }
-        .comparison-table .category-header {
-            background-color: #1f2937;
-            color: #e5e7eb;
-        }
-        .comparison-table .category-header:hover {
-            background-color: #2d3748;
-        }
-        
-        /* Side by side comparison styling - Dark mode */
-        .side-by-side .contract-col {
-            border: 1px solid #30363d;
-            background-color: #0d1117;
-        }
-        .side-by-side h3 {
-            border-bottom: 1px solid #30363d;
-            color: #e5e7eb;
-        }
-        .category-title {
-            border-bottom: 1px solid #30363d;
-            color: #e5e7eb;
-        }
-        
-        /* Synchronized scrolling - Dark mode */
-        .sync-scroll-container {
-            border: 1px solid #30363d;
-        }
-        .sync-scroll-pane {
-            border-right: 1px solid #30363d;
-            background-color: #0d1117;
-        }
-        .sync-scroll-pane::-webkit-scrollbar-track {
-            background: #161b22;
-        }
-        .sync-scroll-pane::-webkit-scrollbar-thumb {
-            background: #30363d;
-        }
-        .sync-scroll-pane::-webkit-scrollbar-thumb:hover {
-            background: #4d5566;
-        }
-        
-        /* Toggle controls - Dark mode */
-        .view-controls {
-            background-color: #1f2937;
-            color: #e5e7eb;
-        }
-        
         /* Executive summary styling - Dark mode */
         .exec-summary {
             background-color: #1f2937;
@@ -416,102 +136,8 @@ st.markdown("""
         .exec-summary h3 {
             color: #e5e7eb;
         }
-        
-        /* Toggle and collapsible sections - Dark mode */
-        .toggle-header {
-            background-color: #1f2937;
-            color: #e5e7eb;
-        }
-        .toggle-header:hover {
-            background-color: #374151;
-        }
-        .toggle-content {
-            border: 1px solid #30363d;
-            background-color: #0d1117;
-        }
-        
-        /* Key findings in summary - Dark mode */
-        .key-finding {
-            color: #3b82f6;
-        }
-        .alert-warning {
-            color: #ef4444;
-        }
-        
-        /* Score card - Dark mode */
-        .score-card {
-            background-color: #1f2937;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-        }
-        .score-card-header {
-            border-bottom: 1px solid #30363d;
-            color: #e5e7eb;
-        }
-        .score-metric-label {
-            color: #9ca3af;
-        }
-        
-        /* Info box - Dark mode */
-        .info-box { 
-            background-color: #1f2937; 
-        }
-        
-        /* List items - Dark mode */
-        ul.comparison-list li:before {
-            color: #3b82f6;
-        }
     }
 </style>
-""", unsafe_allow_html=True)
-
-# JavaScript for enhanced interactive features
-st.markdown("""
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Collapsible sections
-    const categoryHeaders = document.querySelectorAll('.category-header');
-    categoryHeaders.forEach(header => {
-        header.addEventListener('click', function() {
-            const contentRows = [];
-            let next = this.nextElementSibling;
-            while (next && !next.classList.contains('category-header')) {
-                contentRows.push(next);
-                next = next.nextElementSibling;
-            }
-            
-            contentRows.forEach(row => {
-                row.classList.toggle('collapsed');
-            });
-        });
-    });
-    
-    // Synchronized scrolling
-    const syncScrollPanes = document.querySelectorAll('.sync-scroll-pane');
-    syncScrollPanes.forEach(pane => {
-        pane.addEventListener('scroll', function() {
-            const scrollPosition = this.scrollTop;
-            syncScrollPanes.forEach(otherPane => {
-                if (otherPane !== this) {
-                    otherPane.scrollTop = scrollPosition;
-                }
-            });
-        });
-    });
-    
-    // Toggle view modes
-    const viewToggle = document.getElementById('view-toggle');
-    if (viewToggle) {
-        viewToggle.addEventListener('change', function() {
-            const allElements = document.querySelectorAll('.diff-common');
-            if (this.value === 'differences') {
-                allElements.forEach(el => el.style.display = 'none');
-            } else {
-                allElements.forEach(el => el.style.display = '');
-            }
-        });
-    }
-});
-</script>
 """, unsafe_allow_html=True)
 
 # Extract text functions
@@ -584,228 +210,6 @@ def highlight_differences(text1, text2):
         j += 1
     
     return ' '.join(result1), ' '.join(result2)
-
-def format_enhanced_comparison(text, risk_analysis, show_diff_only=False):
-    """
-    Format the comparison text into an enhanced HTML structure with:
-    - Risk assessment
-    - Diff highlighting
-    - Collapsible sections
-    - Side-by-side scrolling view
-    """
-    # Split the text into sections based on category headers
-    sections = re.split(r'### (.*?)(?:\n|$)', text)
-    
-    if len(sections) <= 1:
-        # If no clear sections, just return formatted text
-        return f"<div class='comparison-text'>{text}</div>"
-    
-    # View controls HTML
-    view_controls = """
-    <div class="view-controls">
-        <div class="view-control-group">
-            <span class="view-control-label">View:</span>
-            <select id="view-toggle">
-                <option value="full">Show All Content</option>
-                <option value="differences">Show Differences Only</option>
-            </select>
-        </div>
-        <div class="view-control-group">
-            <button id="expand-all-btn">Expand All</button>
-            <button id="collapse-all-btn">Collapse All</button>
-        </div>
-    </div>
-    """
-    
-    html_output = view_controls + "<table class='comparison-table'>"
-    
-    # Process each section
-    for i in range(1, len(sections), 2):
-        if i < len(sections):
-            category = sections[i].strip()
-            content = sections[i+1] if i+1 < len(sections) else ""
-            section_id = f"section-{i}"
-            
-            # Get risk assessment for this category if available
-            category_risk = None
-            if risk_analysis and 'categories' in risk_analysis:
-                for cat in risk_analysis['categories']:
-                    if isinstance(cat, dict) and 'name' in cat:
-                        if cat['name'].lower() == category.lower():
-                            category_risk = cat
-                            break
-            
-            # Split content into contract1 and contract2 parts
-            parts = re.split(r'#### (Contract 1|Contract 2)(?:\n|$)', content)
-            
-            if len(parts) > 2:  # We have proper split between contracts
-                # Add risk indicators if available
-                risk_indicators = ""
-                if category_risk:
-                    try:
-                        risk_c1 = category_risk.get('contract1_risk', 'medium')
-                        risk_c2 = category_risk.get('contract2_risk', 'medium')
-                        
-                        # Ensure risk levels are valid strings
-                        if not isinstance(risk_c1, str):
-                            risk_c1 = 'medium'
-                        if not isinstance(risk_c2, str):
-                            risk_c2 = 'medium'
-                        
-                        # Normalize risk levels to lower case
-                        risk_c1 = risk_c1.lower()
-                        risk_c2 = risk_c2.lower()
-                        
-                        # Validate risk levels
-                        valid_risks = ['high', 'medium', 'low', 'favorable']
-                        risk_c1 = risk_c1 if risk_c1 in valid_risks else 'medium'
-                        risk_c2 = risk_c2 if risk_c2 in valid_risks else 'medium'
-                        
-                        risk_c1_html = f"<span class='risk-{risk_c1}'>{risk_c1.upper()}</span>"
-                        risk_c2_html = f"<span class='risk-{risk_c2}'>{risk_c2.upper()}</span>"
-                        
-                        # Add expandable section header
-                        html_output += f"""<tr class='category-header' data-section="{section_id}">
-                                          <th colspan='2'>{category} <span style="float:right;">▼</span></th></tr>
-                                          <tr><th>Contract 1 {risk_c1_html}</th><th>Contract 2 {risk_c2_html}</th></tr>"""
-                    except Exception as e:
-                        # Fall back to simple header without risk indicators
-                        html_output += f"""<tr class='category-header' data-section="{section_id}">
-                                         <th colspan='2'>{category} <span style="float:right;">▼</span></th></tr>
-                                         <tr><th>Contract 1</th><th>Contract 2</th></tr>"""
-                else:
-                    html_output += f"""<tr class='category-header' data-section="{section_id}">
-                                     <th colspan='2'>{category} <span style="float:right;">▼</span></th></tr>
-                                     <tr><th>Contract 1</th><th>Contract 2</th></tr>"""
-                
-                # Find the content for each contract
-                contract1_content = ""
-                contract2_content = ""
-                
-                for j in range(1, len(parts), 2):
-                    if j < len(parts):
-                        contract_type = parts[j].strip()
-                        contract_content = parts[j+1] if j+1 < len(parts) else ""
-                        
-                        # Remove any lines that only contain "#" symbol
-                        contract_content = re.sub(r'(?:^|\n)#\s*(?:$|\n)', '\n', contract_content)
-                        
-                        # Process risk tags if they exist in the content
-                        if category_risk:
-                            try:
-                                # Look for any specific clauses with risk tags
-                                if contract_type == "Contract 1" and 'contract1_clauses' in category_risk:
-                                    clauses = category_risk['contract1_clauses']
-                                    if isinstance(clauses, list):
-                                        for clause in clauses:
-                                            if isinstance(clause, dict) and 'text' in clause and 'risk' in clause:
-                                                clause_text = clause['text']
-                                                risk_level = clause['risk']
-                                                
-                                                # Validate risk level
-                                                if not isinstance(risk_level, str):
-                                                    risk_level = 'medium'
-                                                risk_level = risk_level.lower()
-                                                risk_level = risk_level if risk_level in valid_risks else 'medium'
-                                                
-                                                # Replace the clause text with a risk-highlighted version
-                                                contract_content = contract_content.replace(
-                                                    f"- {clause_text}", 
-                                                    f"- <span class='risk-{risk_level}'>{clause_text}</span>"
-                                                )
-                                elif contract_type == "Contract 2" and 'contract2_clauses' in category_risk:
-                                    clauses = category_risk['contract2_clauses']
-                                    if isinstance(clauses, list):
-                                        for clause in clauses:
-                                            if isinstance(clause, dict) and 'text' in clause and 'risk' in clause:
-                                                clause_text = clause['text']
-                                                risk_level = clause['risk']
-                                                
-                                                # Validate risk level
-                                                if not isinstance(risk_level, str):
-                                                    risk_level = 'medium'
-                                                risk_level = risk_level.lower()
-                                                risk_level = risk_level if risk_level in valid_risks else 'medium'
-                                                
-                                                # Replace the clause text with a risk-highlighted version
-                                                contract_content = contract_content.replace(
-                                                    f"- {clause_text}", 
-                                                    f"- <span class='risk-{risk_level}'>{clause_text}</span>"
-                                                )
-                            except Exception as e:
-                                # If there's an error processing risk tags, just continue without them
-                                pass
-                        
-                        # Extract bullet points for better processing
-                        points = re.findall(r'(?:^|\n)- (.*?)(?:$|\n)', contract_content)
-                        processed_content = contract_content
-                        
-                        if contract_type == "Contract 1":
-                            contract1_content = processed_content
-                        elif contract_type == "Contract 2":
-                            contract2_content = processed_content
-                
-                # Apply diff highlighting to bullet points
-                bullet_pattern = r'(?:^|\n)- (.*?)(?:$|\n)'
-                bullets1 = re.findall(bullet_pattern, contract1_content)
-                bullets2 = re.findall(bullet_pattern, contract2_content)
-                
-                # Process bullets to create HTML with diff highlighting
-                html_bullets1 = []
-                html_bullets2 = []
-                
-                # Process each bullet point pair if both contracts have bullet points
-                max_bullets = max(len(bullets1), len(bullets2))
-                for k in range(max_bullets):
-                    bullet1 = bullets1[k] if k < len(bullets1) else ""
-                    bullet2 = bullets2[k] if k < len(bullets2) else ""
-                    
-                    if bullet1 and bullet2:
-                        # Apply diff highlighting
-                        highlighted1, highlighted2 = highlight_differences(bullet1, bullet2)
-                        html_bullets1.append(f"<li>{highlighted1}</li>")
-                        html_bullets2.append(f"<li>{highlighted2}</li>")
-                    elif bullet1:
-                        # Only in contract 1
-                        html_bullets1.append(f"<li><span class='diff-removed'>{bullet1}</span></li>")
-                    elif bullet2:
-                        # Only in contract 2
-                        html_bullets2.append(f"<li><span class='diff-added'>{bullet2}</span></li>")
-                
-                # Replace the original content with HTML lists
-                contract1_html = f"<ul class='comparison-list'>{''.join(html_bullets1)}</ul>"
-                contract2_html = f"<ul class='comparison-list'>{''.join(html_bullets2)}</ul>"
-                
-                # Create synchronized scrolling container for the section content
-                scroll_container = f"""
-                <tr id="{section_id}" class="section-content">
-                    <td>
-                        <div class="sync-scroll-pane left-pane">
-                            {contract1_html}
-                        </div>
-                    </td>
-                    <td>
-                        <div class="sync-scroll-pane right-pane">
-                            {contract2_html}
-                        </div>
-                    </td>
-                </tr>
-                """
-                
-                html_output += scroll_container
-            else:
-                # If no clear split between contracts, just show the content as is
-                
-                # Remove any lines that only contain "#" symbol
-                content = re.sub(r'(?:^|\n)#\s*(?:$|\n)', '\n', content)
-                
-                content = re.sub(r'(?:^|\n)- (.*?)(?:$|\n)', r'\n<li>\1</li>', content)
-                content = f"<ul class='comparison-list'>{content}</ul>"
-                html_output += f"<tr class='category-header' data-section='{section_id}'><th colspan='2'>{category} <span style=\"float:right;\">▼</span></th></tr>"
-                html_output += f"<tr id='{section_id}' class='section-content'><td colspan='2'>{content}</td></tr>"
-    
-    html_output += "</table>"
-    return html_output
 
 def create_executive_summary(analysis_result, risk_analysis, contract1_name, contract2_name):
     """Generate an executive summary from the analysis results and risk assessment."""
@@ -1093,7 +497,6 @@ def main():
         - Text difference highlighting between contracts
         - Collapsible sections for easier navigation
         - Interactive toggles to focus on differences
-        - Synchronized scrolling between contract sections
         - Risk assessment with color-coding
         """)
     
@@ -1203,154 +606,154 @@ def main():
                 if analysis['custom_prompt']:
                     st.markdown(f"**Custom Instructions:** {analysis['custom_prompt']}")
             
-    # Process and display the enhanced comparison with interactive features
-    st.markdown("### Interactive Comparison")
-    
-    # Native Streamlit controls instead of JavaScript
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        diff_view = st.selectbox(
-            "View Mode:", 
-            ["Show All Content", "Show Differences Only"],
-            key="diff_view"
-        )
-    with col2:
-        st.write("&nbsp;")  # Spacer
-        sections_expanded = st.checkbox("Expand All Sections", value=True, key="expand_sections")
-    
-    # Process the comparison text into sections for Streamlit expanders
-    sections = re.split(r'### (.*?)(?:\n|$)', analysis['result'])
-    
-    if len(sections) > 1:
-        # For each section, create a Streamlit expander
-        for i in range(1, len(sections), 2):
-            if i < len(sections):
-                category = sections[i].strip()
-                content = sections[i+1] if i+1 < len(sections) else ""
-                
-                # Get risk assessment for this category if available
-                category_risk = None
-                risk_level_html = ""
-                if 'risk_analysis' in analysis and analysis['risk_analysis'] and 'categories' in analysis['risk_analysis']:
-                    for cat in analysis['risk_analysis']['categories']:
-                        if isinstance(cat, dict) and 'name' in cat:
-                            if cat['name'].lower() == category.lower():
-                                category_risk = cat
-                                # Add risk indicators if available
-                                try:
-                                    risk_c1 = cat.get('contract1_risk', 'medium').upper()
-                                    risk_c2 = cat.get('contract2_risk', 'medium').upper()
-                                    risk_level_html = f" - C1: {risk_c1}, C2: {risk_c2}"
-                                except:
-                                    pass
-                                break
+            # Process and display the enhanced comparison with interactive features
+            st.markdown("### Interactive Comparison")
+            
+            # Native Streamlit controls instead of JavaScript
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                diff_view = st.selectbox(
+                    "View Mode:", 
+                    ["Show All Content", "Show Differences Only"],
+                    key="diff_view"
+                )
+            with col2:
+                st.write("&nbsp;")  # Spacer
+                sections_expanded = st.checkbox("Expand All Sections", value=True, key="expand_sections")
+            
+            # Process the comparison text into sections for Streamlit expanders
+            sections = re.split(r'### (.*?)(?:\n|$)', analysis['result'])
+            
+            if len(sections) > 1:
+                # For each section, create a Streamlit expander
+                for i in range(1, len(sections), 2):
+                    if i < len(sections):
+                        category = sections[i].strip()
+                        content = sections[i+1] if i+1 < len(sections) else ""
+                        
+                        # Get risk assessment for this category if available
+                        category_risk = None
+                        risk_level_html = ""
+                        if 'risk_analysis' in analysis and analysis['risk_analysis'] and 'categories' in analysis['risk_analysis']:
+                            for cat in analysis['risk_analysis']['categories']:
+                                if isinstance(cat, dict) and 'name' in cat:
+                                    if cat['name'].lower() == category.lower():
+                                        category_risk = cat
+                                        # Add risk indicators if available
+                                        try:
+                                            risk_c1 = cat.get('contract1_risk', 'medium').upper()
+                                            risk_c2 = cat.get('contract2_risk', 'medium').upper()
+                                            risk_level_html = f" - C1: {risk_c1}, C2: {risk_c2}"
+                                        except:
+                                            pass
+                                        break
 
-                # Create a Streamlit expander for each section
-                with st.expander(f"{category}{risk_level_html}", expanded=sections_expanded):
-                    # Split content into contract1 and contract2 parts
-                    parts = re.split(r'#### (Contract 1|Contract 2)(?:\n|$)', content)
-                    
-                    if len(parts) > 2:  # We have proper split between contracts
-                        # Side-by-side columns for contract comparison
-                        col1, col2 = st.columns(2)
-                        
-                        for j in range(1, len(parts), 2):
-                            if j < len(parts):
-                                contract_type = parts[j].strip()
-                                contract_content = parts[j+1] if j+1 < len(parts) else ""
+                        # Create a Streamlit expander for each section
+                        with st.expander(f"{category}{risk_level_html}", expanded=sections_expanded):
+                            # Split content into contract1 and contract2 parts
+                            parts = re.split(r'#### (Contract 1|Contract 2)(?:\n|$)', content)
+                            
+                            if len(parts) > 2:  # We have proper split between contracts
+                                # Side-by-side columns for contract comparison
+                                col1, col2 = st.columns(2)
                                 
-                                # Process risk tags if they exist in the content
-                                if category_risk:
-                                    try:
-                                        # Look for any specific clauses with risk tags
-                                        if contract_type == "Contract 1" and 'contract1_clauses' in category_risk:
-                                            clauses = category_risk['contract1_clauses']
-                                            if isinstance(clauses, list):
-                                                for clause in clauses:
-                                                    if isinstance(clause, dict) and 'text' in clause and 'risk' in clause:
-                                                        clause_text = clause['text']
-                                                        risk_level = clause['risk']
-                                                        
-                                                        # Add risk highlight using Streamlit markdown
-                                                        contract_content = contract_content.replace(
-                                                            f"- {clause_text}", 
-                                                            f"- **[{risk_level.upper()}]** {clause_text}"
-                                                        )
-                                        elif contract_type == "Contract 2" and 'contract2_clauses' in category_risk:
-                                            clauses = category_risk['contract2_clauses']
-                                            if isinstance(clauses, list):
-                                                for clause in clauses:
-                                                    if isinstance(clause, dict) and 'text' in clause and 'risk' in clause:
-                                                        clause_text = clause['text']
-                                                        risk_level = clause['risk']
-                                                        
-                                                        # Add risk highlight using Streamlit markdown
-                                                        contract_content = contract_content.replace(
-                                                            f"- {clause_text}", 
-                                                            f"- **[{risk_level.upper()}]** {clause_text}"
-                                                        )
-                                    except Exception as e:
-                                        # If there's an error processing risk tags, just continue without them
-                                        pass
-                                
-                                # Display contract in the appropriate column
-                                if contract_type == "Contract 1":
-                                    with col1:
-                                        st.markdown(f"### {analysis['contract1_name']}")
-                                        st.markdown(contract_content)
-                                elif contract_type == "Contract 2":
-                                    with col2:
-                                        st.markdown(f"### {analysis['contract2_name']}")
-                                        st.markdown(contract_content)
-                    else:
-                        # If no clear split between contracts, just show the content as is
-                        st.markdown(content)
-                
-                # Add a visual diff comparison section if selected
-                if diff_view == "Show Differences Only":
-                    with st.expander("🔍 View Text Differences", expanded=True):
-                        # Extract bullet points from both contracts
-                        parts = re.split(r'#### (Contract 1|Contract 2)(?:\n|$)', content)
-                        
-                        contract1_content = ""
-                        contract2_content = ""
-                        
-                        for j in range(1, len(parts), 2):
-                            if j < len(parts):
-                                contract_type = parts[j].strip()
-                                if contract_type == "Contract 1":
-                                    contract1_content = parts[j+1] if j+1 < len(parts) else ""
-                                elif contract_type == "Contract 2":
-                                    contract2_content = parts[j+1] if j+1 < len(parts) else ""
-                        
-                        # Extract bullet points
-                        bullet_pattern = r'(?:^|\n)- (.*?)(?:$|\n)'
-                        bullets1 = re.findall(bullet_pattern, contract1_content)
-                        bullets2 = re.findall(bullet_pattern, contract2_content)
-                        
-                        # Display differences
-                        diff_col1, diff_col2 = st.columns(2)
-                        
-                        with diff_col1:
-                            st.markdown(f"#### Unique to {analysis['contract1_name']}")
-                            unique_to_1 = [b for b in bullets1 if b not in bullets2]
-                            if unique_to_1:
-                                for bullet in unique_to_1:
-                                    st.markdown(f"- 🔴 {bullet}")
+                                for j in range(1, len(parts), 2):
+                                    if j < len(parts):
+                                        contract_type = parts[j].strip()
+                                        contract_content = parts[j+1] if j+1 < len(parts) else ""
+                                        
+                                        # Process risk tags if they exist in the content
+                                        if category_risk:
+                                            try:
+                                                # Look for any specific clauses with risk tags
+                                                if contract_type == "Contract 1" and 'contract1_clauses' in category_risk:
+                                                    clauses = category_risk['contract1_clauses']
+                                                    if isinstance(clauses, list):
+                                                        for clause in clauses:
+                                                            if isinstance(clause, dict) and 'text' in clause and 'risk' in clause:
+                                                                clause_text = clause['text']
+                                                                risk_level = clause['risk']
+                                                                
+                                                                # Add risk highlight using Streamlit markdown
+                                                                contract_content = contract_content.replace(
+                                                                    f"- {clause_text}", 
+                                                                    f"- **[{risk_level.upper()}]** {clause_text}"
+                                                                )
+                                                elif contract_type == "Contract 2" and 'contract2_clauses' in category_risk:
+                                                    clauses = category_risk['contract2_clauses']
+                                                    if isinstance(clauses, list):
+                                                        for clause in clauses:
+                                                            if isinstance(clause, dict) and 'text' in clause and 'risk' in clause:
+                                                                clause_text = clause['text']
+                                                                risk_level = clause['risk']
+                                                                
+                                                                # Add risk highlight using Streamlit markdown
+                                                                contract_content = contract_content.replace(
+                                                                    f"- {clause_text}", 
+                                                                    f"- **[{risk_level.upper()}]** {clause_text}"
+                                                                )
+                                            except Exception as e:
+                                                # If there's an error processing risk tags, just continue without them
+                                                pass
+                                        
+                                        # Display contract in the appropriate column
+                                        if contract_type == "Contract 1":
+                                            with col1:
+                                                st.markdown(f"### {analysis['contract1_name']}")
+                                                st.markdown(contract_content)
+                                        elif contract_type == "Contract 2":
+                                            with col2:
+                                                st.markdown(f"### {analysis['contract2_name']}")
+                                                st.markdown(contract_content)
                             else:
-                                st.markdown("*No unique points*")
+                                # If no clear split between contracts, just show the content as is
+                                st.markdown(content)
+                        
+                        # Add a visual diff comparison section if selected
+                        if diff_view == "Show Differences Only":
+                            with st.expander("🔍 View Text Differences", expanded=True):
+                                # Extract bullet points from both contracts
+                                parts = re.split(r'#### (Contract 1|Contract 2)(?:\n|$)', content)
                                 
-                        with diff_col2:
-                            st.markdown(f"#### Unique to {analysis['contract2_name']}")
-                            unique_to_2 = [b for b in bullets2 if b not in bullets1]
-                            if unique_to_2:
-                                for bullet in unique_to_2:
-                                    st.markdown(f"- 🟢 {bullet}")
-                            else:
-                                st.markdown("*No unique points*")
-    else:
-        # If no section found, display the raw text
-        st.markdown(analysis['result'])
+                                contract1_content = ""
+                                contract2_content = ""
+                                
+                                for j in range(1, len(parts), 2):
+                                    if j < len(parts):
+                                        contract_type = parts[j].strip()
+                                        if contract_type == "Contract 1":
+                                            contract1_content = parts[j+1] if j+1 < len(parts) else ""
+                                        elif contract_type == "Contract 2":
+                                            contract2_content = parts[j+1] if j+1 < len(parts) else ""
+                                
+                                # Extract bullet points
+                                bullet_pattern = r'(?:^|\n)- (.*?)(?:$|\n)'
+                                bullets1 = re.findall(bullet_pattern, contract1_content)
+                                bullets2 = re.findall(bullet_pattern, contract2_content)
+                                
+                                # Display differences
+                                diff_col1, diff_col2 = st.columns(2)
+                                
+                                with diff_col1:
+                                    st.markdown(f"#### Unique to {analysis['contract1_name']}")
+                                    unique_to_1 = [b for b in bullets1 if b not in bullets2]
+                                    if unique_to_1:
+                                        for bullet in unique_to_1:
+                                            st.markdown(f"- 🔴 {bullet}")
+                                    else:
+                                        st.markdown("*No unique points*")
+                                        
+                                with diff_col2:
+                                    st.markdown(f"#### Unique to {analysis['contract2_name']}")
+                                    unique_to_2 = [b for b in bullets2 if b not in bullets1]
+                                    if unique_to_2:
+                                        for bullet in unique_to_2:
+                                            st.markdown(f"- 🟢 {bullet}")
+                                    else:
+                                        st.markdown("*No unique points*")
+            else:
+                # If no section found, display the raw text
+                st.markdown(analysis['result'])
             
             # Download buttons for the comparison and risk assessment
             col1, col2 = st.columns(2)

@@ -52,7 +52,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS for better styling with enhanced color coding and visualization
+# CSS for better styling with enhanced color coding, visualization, and dark mode support
 st.markdown("""
 <style>
     .main { padding: 2rem; }
@@ -69,7 +69,7 @@ st.markdown("""
     .opportunity { background-color: #f6ffed; padding: 1rem; border-radius: 5px; 
                  margin: 1rem 0; border-left: 4px solid #52c41a; }
     
-    /* Risk level indicators */
+    /* Risk level indicators - Light mode */
     .risk-high { background-color: #ffcdd2; color: #c62828; padding: 0.2rem 0.5rem; border-radius: 3px; font-weight: bold; }
     .risk-medium { background-color: #fff9c4; color: #f57f17; padding: 0.2rem 0.5rem; border-radius: 3px; font-weight: bold; }
     .risk-low { background-color: #dcedc8; color: #33691e; padding: 0.2rem 0.5rem; border-radius: 3px; font-weight: bold; }
@@ -80,7 +80,7 @@ st.markdown("""
     .diff-removed { background-color: #ffeef0; text-decoration: line-through; padding: 0.1rem 0.2rem; }
     .diff-common { }
     
-    /* Enhanced comparison table */
+    /* Enhanced comparison table - Light mode */
     .comparison-table { 
         width: 100%; 
         border-collapse: collapse; 
@@ -108,7 +108,7 @@ st.markdown("""
         font-weight: bold;
     }
     
-    /* Side by side comparison styling */
+    /* Side by side comparison styling - Light mode */
     .side-by-side {
         display: flex;
         margin-bottom: 1rem;
@@ -150,7 +150,7 @@ st.markdown("""
         color: #1890ff;
     }
     
-    /* Executive summary styling */
+    /* Executive summary styling - Light mode */
     .exec-summary {
         background-color: #f5f7fa;
         border-radius: 8px;
@@ -210,7 +210,7 @@ st.markdown("""
         font-weight: bold;
     }
     
-    /* Score card */
+    /* Score card - Light mode */
     .score-card {
         background-color: white;
         border-radius: 8px;
@@ -241,6 +241,128 @@ st.markdown("""
     .score-metric-label {
         font-size: 0.8rem;
         color: #666;
+    }
+    
+    /* DARK MODE STYLES */
+    @media (prefers-color-scheme: dark) {
+        /* General dark mode adjustments */
+        .section-header { 
+            border-bottom: 2px solid #30363d; 
+        }
+        
+        /* Risk level indicators - Dark mode */
+        .risk-high { 
+            background-color: rgba(220, 38, 38, 0.2); 
+            color: #ef4444; 
+        }
+        .risk-medium { 
+            background-color: rgba(245, 158, 11, 0.2); 
+            color: #f59e0b; 
+        }
+        .risk-low { 
+            background-color: rgba(16, 185, 129, 0.2); 
+            color: #10b981; 
+        }
+        .risk-favorable { 
+            background-color: rgba(59, 130, 246, 0.2); 
+            color: #3b82f6; 
+        }
+        
+        /* Text diff highlighting - Dark mode */
+        .diff-added { 
+            background-color: rgba(16, 185, 129, 0.2); 
+        }
+        .diff-removed { 
+            background-color: rgba(220, 38, 38, 0.2); 
+        }
+        
+        /* Enhanced comparison table - Dark mode */
+        .comparison-table { 
+            border: 1px solid #30363d;
+        }
+        .comparison-table th { 
+            background-color: #161b22; 
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+        }
+        .comparison-table td { 
+            border: 1px solid #30363d; 
+            color: #c9d1d9;
+        }
+        .comparison-table tr:nth-child(even) {
+            background-color: #0d1117;
+        }
+        .comparison-table .category-header {
+            background-color: #1f2937;
+            color: #e5e7eb;
+        }
+        
+        /* Side by side comparison styling - Dark mode */
+        .side-by-side .contract-col {
+            border: 1px solid #30363d;
+            background-color: #0d1117;
+        }
+        .side-by-side h3 {
+            border-bottom: 1px solid #30363d;
+            color: #e5e7eb;
+        }
+        .category-title {
+            border-bottom: 1px solid #30363d;
+            color: #e5e7eb;
+        }
+        
+        /* Executive summary styling - Dark mode */
+        .exec-summary {
+            background-color: #1f2937;
+            border-left: 5px solid #3b82f6;
+        }
+        .exec-summary h3 {
+            color: #e5e7eb;
+        }
+        
+        /* Toggle and collapsible sections - Dark mode */
+        .toggle-header {
+            background-color: #1f2937;
+            color: #e5e7eb;
+        }
+        .toggle-header:hover {
+            background-color: #374151;
+        }
+        .toggle-content {
+            border: 1px solid #30363d;
+            background-color: #0d1117;
+        }
+        
+        /* Key findings in summary - Dark mode */
+        .key-finding {
+            color: #3b82f6;
+        }
+        .alert-warning {
+            color: #ef4444;
+        }
+        
+        /* Score card - Dark mode */
+        .score-card {
+            background-color: #1f2937;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+        .score-card-header {
+            border-bottom: 1px solid #30363d;
+            color: #e5e7eb;
+        }
+        .score-metric-label {
+            color: #9ca3af;
+        }
+        
+        /* Info box - Dark mode */
+        .info-box { 
+            background-color: #1f2937; 
+        }
+        
+        /* List items - Dark mode */
+        ul.comparison-list li:before {
+            color: #3b82f6;
+        }
     }
 </style>
 """, unsafe_allow_html=True)

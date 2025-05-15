@@ -378,6 +378,9 @@ def format_comparison_table_with_risk(text, risk_analysis):
 def create_executive_summary(analysis_result, risk_analysis, contract1_name, contract2_name):
     """Generate an executive summary from the analysis results and risk assessment."""
     
+    if not risk_analysis:
+        return "<div class='exec-summary'><h3>Executive Summary</h3><p>Risk analysis data not available. Please rerun the comparison.</p></div>"
+    
     # Get overall scores
     c1_score = risk_analysis.get('contract1_overall_score', 70)
     c2_score = risk_analysis.get('contract2_overall_score', 70)
@@ -398,6 +401,16 @@ def create_executive_summary(analysis_result, risk_analysis, contract1_name, con
     c1_disadvantages = risk_analysis.get('contract1_disadvantages', ['No specific disadvantages identified'])
     c2_advantages = risk_analysis.get('contract2_advantages', ['No specific advantages identified'])
     c2_disadvantages = risk_analysis.get('contract2_disadvantages', ['No specific disadvantages identified'])
+    
+    # Ensure lists are not empty
+    if not c1_advantages:
+        c1_advantages = ['No specific advantages identified']
+    if not c1_disadvantages:
+        c1_disadvantages = ['No specific disadvantages identified']
+    if not c2_advantages:
+        c2_advantages = ['No specific advantages identified']
+    if not c2_disadvantages:
+        c2_disadvantages = ['No specific disadvantages identified']
     
     # Get recommendations
     recommendation = risk_analysis.get('recommendation', 'Further detailed analysis recommended.')
@@ -426,15 +439,15 @@ def create_executive_summary(analysis_result, risk_analysis, contract1_name, con
     for disadv in c1_disadvantages[:3]:  # Limit to top 3
         html += f"<li>{disadv}</li>"
     
-    html += """
+    html += f"""
                 </ul>
             </div>
             <div class="contract-col">
-                <h4>{}</h4>
-                <p><span class="score-pill score-{}">{}</span> Overall Score: {}/100</p>
+                <h4>{contract2_name}</h4>
+                <p><span class="score-pill score-{c2_grade.lower()}">{c2_grade}</span> Overall Score: {c2_score}/100</p>
                 <h5>Key Advantages</h5>
                 <ul>
-    """.format(contract2_name, c2_grade.lower(), c2_grade, c2_score)
+    """
     
     for adv in c2_advantages[:3]:  # Limit to top 3
         html += f"<li>{adv}</li>"
@@ -448,16 +461,16 @@ def create_executive_summary(analysis_result, risk_analysis, contract1_name, con
     for disadv in c2_disadvantages[:3]:  # Limit to top 3
         html += f"<li>{disadv}</li>"
     
-    html += """
+    html += f"""
                 </ul>
             </div>
         </div>
         <h5>Recommendation</h5>
         <div class="key-points">
-            <p>{}</p>
+            <p>{recommendation}</p>
         </div>
     </div>
-    """.format(recommendation)
+    """
     
     return html
 
@@ -468,12 +481,38 @@ def create_score_card(risk_analysis, contract1_name, contract2_name):
     c1_dimensions = risk_analysis.get('contract1_dimension_scores', {})
     c2_dimensions = risk_analysis.get('contract2_dimension_scores', {})
     
-    # Create comparison charts using Altair
-    categories = list(c1_dimensions.keys())
-    c1_scores = [c1_dimensions[cat] for cat in categories]
-    c2_scores = [c2_dimensions[cat] for cat in categories]
+    # Create default dimensions if missing
+    if not c1_dimensions:
+        c1_dimensions = {
+            "Pricing": 70,
+            "Risk Allocation": 70,
+            "Service Levels": 70,
+            "Flexibility": 70,
+            "Legal Protection": 70
+        }
+    if not c2_dimensions:
+        c2_dimensions = {
+            "Pricing": 70,
+            "Risk Allocation": 70,
+            "Service Levels": 70,
+            "Flexibility": 70,
+            "Legal Protection": 70
+        }
     
     # Prepare data for the chart
+    categories = []
+    c1_scores = []
+    c2_scores = []
+    
+    # Ensure both dimension sets have the same categories
+    all_categories = set(list(c1_dimensions.keys()) + list(c2_dimensions.keys()))
+    
+    for cat in all_categories:
+        categories.append(cat)
+        c1_scores.append(c1_dimensions.get(cat, 70))  # Default to 70 if missing
+        c2_scores.append(c2_dimensions.get(cat, 70))  # Default to 70 if missing
+    
+    # Create chart data
     chart_data = pd.DataFrame({
         'Category': categories + categories,
         'Score': c1_scores + c2_scores,
@@ -481,21 +520,25 @@ def create_score_card(risk_analysis, contract1_name, contract2_name):
     })
     
     # Create the chart
-    chart = alt.Chart(chart_data).mark_bar().encode(
-        x=alt.X('Category:N', title=None),
-        y=alt.Y('Score:Q', scale=alt.Scale(domain=[0, 100])),
-        color=alt.Color('Contract:N', scale=alt.Scale(
-            domain=[contract1_name, contract2_name],
-            range=['#1890ff', '#52c41a']
-        )),
-        tooltip=['Category', 'Score', 'Contract']
-    ).properties(
-        title='Comparison by Category',
-        width=600,
-        height=300
-    )
-    
-    return chart
+    try:
+        chart = alt.Chart(chart_data).mark_bar().encode(
+            x=alt.X('Category:N', title=None),
+            y=alt.Y('Score:Q', scale=alt.Scale(domain=[0, 100])),
+            color=alt.Color('Contract:N', scale=alt.Scale(
+                domain=[contract1_name, contract2_name],
+                range=['#1890ff', '#52c41a']
+            )),
+            tooltip=['Category', 'Score', 'Contract']
+        ).properties(
+            title='Comparison by Category',
+            width=600,
+            height=300
+        )
+        return chart
+    except Exception as e:
+        st.warning(f"Could not create chart: {str(e)}")
+        # Return a placeholder message
+        return "Chart generation failed. Please check the data format."
 
 def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus, custom_prompt):
     """Use Claude AI to compare contracts and generate insights with risk assessment."""
@@ -545,64 +588,7 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
     9. Use concise, clear British English focusing on the practical implications
     10. End with a brief section highlighting the most critical differences that would impact decision-making
     
-    ADDITIONAL TASK: After completing the comparison, provide a separate structured risk assessment in JSON format as follows:
-    ```json
-    {
-      "contract1_overall_score": 75,
-      "contract2_overall_score": 80,
-      "contract1_dimension_scores": {
-        "Pricing": 70,
-        "Risk Allocation": 65,
-        "Service Levels": 80,
-        "Flexibility": 75,
-        "Legal Protection": 80
-      },
-      "contract2_dimension_scores": {
-        "Pricing": 85,
-        "Risk Allocation": 75,
-        "Service Levels": 85,
-        "Flexibility": 70,
-        "Legal Protection": 85
-      },
-      "categories": [
-        {
-          "name": "Pricing Structure",
-          "contract1_risk": "medium",
-          "contract2_risk": "low",
-          "contract1_clauses": [
-            {"text": "Fixed fee structure with limited scope for adjustments", "risk": "high"},
-            {"text": "30-day payment terms", "risk": "medium"}
-          ],
-          "contract2_clauses": [
-            {"text": "Usage-based pricing with volume discounts", "risk": "low"},
-            {"text": "45-day payment terms", "risk": "medium"}
-          ]
-        }
-      ],
-      "contract1_advantages": [
-        "Clear fixed price structure provides budget certainty",
-        "Strong intellectual property protections"
-      ],
-      "contract1_disadvantages": [
-        "Limited flexibility for changing requirements",
-        "Higher overall cost structure",
-        "Weaker SLA terms compared to Contract 2"
-      ],
-      "contract2_advantages": [
-        "More favorable pricing structure with volume discounts",
-        "Stronger SLA commitments with financial penalties",
-        "More comprehensive exit provisions"
-      ],
-      "contract2_disadvantages": [
-        "Less clarity on IP ownership",
-        "Limited liability caps for data breaches",
-        "Longer payment terms"
-      ],
-      "recommendation": "Contract 2 appears more favorable overall, offering better value and stronger service commitments, though Contract 1 has superior IP protections."
-    }
-    ```
-    
-    Ensure the JSON risk assessment reflects industry standards for ERP contracts, with accurate risk levels (high/medium/low/favorable) assigned to each clause based on common benchmarks. The overall scores should be on a scale of 0-100.
+    ADDITIONAL TASK: After completing the comparison, provide a separate structured risk assessment in JSON format enclosed in triple backticks with "json" language specifier.
     """
     
     try:
@@ -610,7 +596,7 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
             model=st.secrets["ANTHROPIC_MODEL"],
             max_tokens=6000,
             temperature=0.2,
-            system="You are an expert procurement analyst specialising in IT and ERP service contracts. Create a clear side-by-side comparison of contract terms, focused only on the specific topics requested. Format your response as a structured comparison with separate sections for each contract under each topic. Use bullet points and bold formatting for clarity and emphasis on key differences. Write in British English. Additionally, you will provide a detailed risk assessment in the specified JSON format, assigning risk levels to clauses based on industry standards and best practices.",
+            system="You are an expert procurement analyst specialising in IT and ERP service contracts. Create a clear side-by-side comparison of contract terms, focused only on the specific topics requested. Format your response as a structured comparison with separate sections for each contract under each topic. Use bullet points and bold formatting for clarity and emphasis on key differences. Write in British English. Additionally, create a risk assessment in JSON format with these fields: contract1_overall_score, contract2_overall_score (both 0-100), dimension_scores for each contract covering Pricing, Risk Allocation, Service Levels, Flexibility, and Legal Protection, categories with risk levels (high/medium/low/favorable) for clauses, and lists of advantages, disadvantages and a recommendation.",
             messages=[
                 {"role": "user", "content": prompt}
             ]
@@ -622,6 +608,32 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
         # Find and extract the JSON part (assuming it's at the end)
         json_match = re.search(r'```json\s*(.*?)\s*```', full_response, re.DOTALL)
         
+        # Create default risk analysis with basic structure
+        default_risk_analysis = {
+            "contract1_overall_score": 70,
+            "contract2_overall_score": 70,
+            "contract1_dimension_scores": {
+                "Pricing": 70,
+                "Risk Allocation": 70,
+                "Service Levels": 70,
+                "Flexibility": 70,
+                "Legal Protection": 70
+            },
+            "contract2_dimension_scores": {
+                "Pricing": 70,
+                "Risk Allocation": 70,
+                "Service Levels": 70,
+                "Flexibility": 70,
+                "Legal Protection": 70
+            },
+            "categories": [],
+            "contract1_advantages": ["Good overall terms"],
+            "contract1_disadvantages": ["Could be improved in some areas"],
+            "contract2_advantages": ["Good overall terms"],
+            "contract2_disadvantages": ["Could be improved in some areas"],
+            "recommendation": "Both contracts have strengths and weaknesses. Further analysis recommended."
+        }
+        
         if json_match:
             json_text = json_match.group(1)
             # Remove the JSON part from the main response
@@ -630,18 +642,41 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
             # Parse the JSON
             try:
                 risk_analysis = json.loads(json_text)
-            except json.JSONDecodeError:
-                # If JSON parsing fails, return everything as text
+                
+                # Ensure all required fields exist with defaults if not present
+                risk_analysis.setdefault("contract1_overall_score", 70)
+                risk_analysis.setdefault("contract2_overall_score", 70)
+                
+                # Ensure dimension scores exist
+                if "contract1_dimension_scores" not in risk_analysis:
+                    risk_analysis["contract1_dimension_scores"] = default_risk_analysis["contract1_dimension_scores"]
+                if "contract2_dimension_scores" not in risk_analysis:
+                    risk_analysis["contract2_dimension_scores"] = default_risk_analysis["contract2_dimension_scores"]
+                
+                # Ensure other required fields exist
+                risk_analysis.setdefault("categories", [])
+                risk_analysis.setdefault("contract1_advantages", ["Good overall terms"])
+                risk_analysis.setdefault("contract1_disadvantages", ["Could be improved in some areas"])
+                risk_analysis.setdefault("contract2_advantages", ["Good overall terms"])
+                risk_analysis.setdefault("contract2_disadvantages", ["Could be improved in some areas"])
+                risk_analysis.setdefault("recommendation", "Both contracts have strengths and weaknesses. Further analysis recommended.")
+                
+            except json.JSONDecodeError as e:
+                # If JSON parsing fails, use default structure
+                st.warning(f"Error parsing risk assessment JSON. Using default values. Error: {str(e)}")
+                risk_analysis = default_risk_analysis
                 comparison_text = full_response
-                risk_analysis = None
         else:
-            # If no JSON found, return everything as text
+            # If no JSON found, use default structure
+            st.warning("No risk assessment JSON found in the response. Using default values.")
             comparison_text = full_response
-            risk_analysis = None
+            risk_analysis = default_risk_analysis
             
         return comparison_text, risk_analysis
     except Exception as e:
-        return f"Error calling Claude API: {str(e)}", None
+        st.error(f"Error calling Claude API: {str(e)}")
+        # Return a basic response and default risk analysis
+        return "Error analyzing contracts. Please try again with different parameters or contact support.", default_risk_analysis
 
 def main():
     # App header

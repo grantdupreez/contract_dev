@@ -227,6 +227,12 @@ def create_executive_summary(analysis_result, risk_analysis, contract1_name, con
     
     return html
 
+def normalize_dimension_name(name):
+    """Normalize dimension names to prevent duplicates with different casing/formatting."""
+    # Convert to lowercase, replace spaces and underscores with a single space, and capitalize words
+    normalized = name.lower().replace('_', ' ').strip()
+    return normalized
+
 def create_area_scorecards(risk_analysis):
     """Generate scorecards for each comparison area."""
     
@@ -244,10 +250,30 @@ def create_area_scorecards(risk_analysis):
     # Create a container div for better styling
     content = ""
     
-    # Combine all dimension keys to ensure we cover all areas
-    all_dimensions = set(list(c1_dimensions.keys()) + list(c2_dimensions.keys()))
+    # Normalize dimension names to prevent duplicates
+    normalized_dimensions = {}
     
+    # First, collect all dimensions with their normalized names
+    all_dimensions = set(list(c1_dimensions.keys()) + list(c2_dimensions.keys()))
     for dimension in all_dimensions:
+        norm_name = normalize_dimension_name(dimension)
+        # If this normalized name already exists, use the one with the higher score as it's likely more accurate
+        if norm_name in normalized_dimensions:
+            existing_dim = normalized_dimensions[norm_name]
+            c1_existing_score = c1_dimensions.get(existing_dim, 0)
+            c2_existing_score = c2_dimensions.get(existing_dim, 0)
+            c1_new_score = c1_dimensions.get(dimension, 0)
+            c2_new_score = c2_dimensions.get(dimension, 0)
+            
+            # If the new dimension has non-zero scores and the existing one has zeros, replace it
+            if (c1_new_score > 0 or c2_new_score > 0) and (c1_existing_score == 0 and c2_existing_score == 0):
+                normalized_dimensions[norm_name] = dimension
+            # Otherwise keep the one with proper capitalization or the first one
+        else:
+            normalized_dimensions[norm_name] = dimension
+    
+    # Now process the unique dimensions
+    for _, dimension in sorted(normalized_dimensions.items()):
         c1_score = c1_dimensions.get(dimension, 0)
         c2_score = c2_dimensions.get(dimension, 0)
         
@@ -264,17 +290,21 @@ def create_area_scorecards(risk_analysis):
         
         # Determine which contract is better in this dimension
         comparison_text = ""
+        difference = abs(c1_score - c2_score)
         if c1_score > c2_score:
-            comparison_text = f"Contract 1 scores {c1_score-c2_score} points higher"
+            comparison_text = f"Contract 1 scores {difference} points higher"
         elif c2_score > c1_score:
-            comparison_text = f"Contract 2 scores {c2_score-c1_score} points higher"
+            comparison_text = f"Contract 2 scores {difference} points higher"
         else:
             comparison_text = "Both contracts score equally"
+        
+        # Display a nicely formatted dimension name (Title Case)
+        display_name = ' '.join(word.capitalize() for word in dimension.replace('_', ' ').split())
         
         # Add styled scorecard markup
         content += f"""
         <div style="background-color: #f0f8ff; border-radius: 5px; padding: 1rem; margin-bottom: 1rem; border-left: 4px solid #1976d2;">
-            <div style="font-weight: bold; margin-bottom: 0.5rem;">{dimension}</div>
+            <div style="font-weight: bold; margin-bottom: 0.5rem;">{display_name}</div>
             <p>{comparison_text} in this area.</p>
             <div style="display: flex; margin-bottom: 10px;">
                 <div style="flex: 1; margin-right: 10px;">
@@ -307,16 +337,9 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
     if analysis_focus:
         context += "specifically focusing on the following aspects: " + ", ".join(analysis_focus) + ". "
     
-    # Add custom instructions
+    # Add custom instructions more prominently
     if custom_prompt:
-        context += custom_prompt
-    
-    # Add custom weights for scoring if provided
-    weights_instruction = ""
-    if custom_weights and isinstance(custom_weights, dict):
-        weights_instruction = "\n\nPlease use the following custom weights when evaluating these contracts: "
-        for area, weight in custom_weights.items():
-            weights_instruction += f"{area}: {weight}%; "
+        context += f"\n\nIMPORTANT CUSTOM INSTRUCTIONS: {custom_prompt}\n\n"
     
     # Create dimension mapping directly from focus areas
     scoring_dimensions = []
@@ -326,10 +349,24 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
         # Default dimensions if no focus areas selected
         scoring_dimensions = ["Pricing", "Risk Allocation", "Service Levels", "Flexibility", "Legal Protection"]
     
-    # Build the scoring instruction
-    scoring_instruction = "\n\nFor each of these specific dimensions, assign a score from 0-100 based on how favorable the terms are:\n"
-    for dimension in scoring_dimensions:
-        scoring_instruction += f"- {dimension}\n"
+    # Add custom weights for scoring if provided
+    weights_instruction = ""
+    if custom_weights and isinstance(custom_weights, dict):
+        weights_instruction = "\n\nPlease use the following importance weights when evaluating these contracts: "
+        for area, weight in custom_weights.items():
+            weights_instruction += f"{area}: {weight}%; "
+    
+    # Build the comparative scoring instruction
+    scoring_instruction = """
+For each dimension, follow this comparative scoring approach:
+1. First directly compare Contract 1 against Contract 2 for this dimension
+2. Assign scores on a 0-100 scale where:
+   - 50 means both contracts are equal
+   - >50 means Contract 1 is better (with 100 being Contract 1 is vastly superior)
+   - <50 means Contract 2 is better (with 0 being Contract 2 is vastly superior)
+3. The difference between the scores should reflect the magnitude of advantage
+4. Example: If Contract 1 has slightly better pricing, you might score it 60/100, meaning it's 10 points better than Contract 2
+"""
     
     # Enhanced prompt with risk assessment
     prompt = f"""
@@ -366,16 +403,16 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
     ADDITIONAL TASK: After completing the comparison, provide a DETAILED risk assessment in JSON format enclosed in triple backticks with "json" language specifier. 
     
     Your JSON format risk assessment MUST include:
-    1. contract1_overall_score and contract2_overall_score (both 0-100, with higher scores being better)
-    2. contract1_dimension_scores and contract2_dimension_scores containing scores for EACH of these dimensions: {', '.join(scoring_dimensions)}
-    3. IMPORTANT: Make sure to differentiate scores - do NOT give the same score to all dimensions
-    4. Assign scores based on how favorable the terms are in each contract - higher scores are better
-    5. Advantages and disadvantages lists for each contract
-    6. A final recommendation
-    {weights_instruction}
-    {scoring_instruction}
+    1. "contract1_overall_score" and "contract2_overall_score" (both 0-100)
+    2. "contract1_dimension_scores" and "contract2_dimension_scores" containing scores for EACH of these dimensions: {', '.join(scoring_dimensions)}
+    3. "recommendation" field with your final recommendation
+    4. "contract1_advantages" and "contract1_disadvantages" as arrays of strings
+    5. "contract2_advantages" and "contract2_disadvantages" as arrays of strings
+    6. IMPORTANT: For scores, use EXACTLY these dimension names: {', '.join(scoring_dimensions)}
+    7. CRITICAL: Make sure to differentiate scores - do NOT give the same score to all dimensions
     
-    For this assessment, a score of 90-100 is excellent, 80-89 is good, 70-79 is adequate, 60-69 is concerning, and below 60 indicates serious issues.
+    {scoring_instruction}
+    {weights_instruction}
     """
     
     try:
@@ -383,7 +420,7 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
             model=st.secrets["ANTHROPIC_MODEL"],
             max_tokens=6000,
             temperature=0.2,
-            system="You are an expert procurement analyst specialising in IT and ERP service contracts. Create a clear side-by-side comparison of contract terms, focused only on the specific topics requested. Format your response as a structured comparison with separate sections for each contract under each topic. Use bullet points and bold formatting for clarity and emphasis on key differences. Write in British English. For the risk assessment, you MUST assign different scores to different dimensions based on the actual content of the contracts - do not use the same score for all dimensions. Be critical in your evaluation and clearly differentiate between the contracts in your scoring.",
+            system="You are an expert procurement analyst specialising in IT and ERP service contracts. Create a clear side-by-side comparison of contract terms, focused only on the specific topics requested. Format your response as a structured comparison with separate sections for each contract under each topic. Use bullet points and bold formatting for clarity and emphasis on key differences. Write in British English. For the risk assessment, you MUST assign different scores to different dimensions based on the actual content of the contracts. Always follow the custom instructions provided by the user. Be critical and detailed in your evaluation.",
             messages=[
                 {"role": "user", "content": prompt}
             ]
@@ -398,8 +435,8 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
         # Create default risk analysis with basic structure but varied scores
         # Intentionally vary the default scores to avoid all 70s
         default_risk_analysis = {
-            "contract1_overall_score": 75,
-            "contract2_overall_score": 68,
+            "contract1_overall_score": 55,
+            "contract2_overall_score": 45,
             "contract1_dimension_scores": {},
             "contract2_dimension_scores": {},
             "categories": [],
@@ -410,12 +447,13 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
             "recommendation": "Both contracts have strengths and weaknesses. Further analysis recommended."
         }
         
-        # Add dimension scores with varied defaults
-        base_scores = [75, 68, 82, 63, 71, 77, 64, 79, 66, 73]
+        # Add dimension scores with varied defaults - centered around 50 (equal)
+        base_scores = [55, 45, 60, 40, 52, 48, 65, 35, 58, 42]
         for i, dimension in enumerate(scoring_dimensions):
             score_idx = i % len(base_scores)
             default_risk_analysis["contract1_dimension_scores"][dimension] = base_scores[score_idx]
-            default_risk_analysis["contract2_dimension_scores"][dimension] = base_scores[(score_idx + 3) % len(base_scores)]
+            # Contract 2 score is implied (100 - contract1_score)
+            default_risk_analysis["contract2_dimension_scores"][dimension] = 100 - base_scores[score_idx]
         
         if json_match:
             json_text = json_match.group(1)
@@ -430,8 +468,8 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
                 st.session_state.debug_json = json_text
                 
                 # Ensure all required fields exist with defaults if not present
-                risk_analysis.setdefault("contract1_overall_score", 75)
-                risk_analysis.setdefault("contract2_overall_score", 68)
+                risk_analysis.setdefault("contract1_overall_score", 55)
+                risk_analysis.setdefault("contract2_overall_score", 45)
                 
                 # Ensure dimension scores exist for all focus areas
                 if "contract1_dimension_scores" not in risk_analysis:
@@ -441,14 +479,19 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
                 
                 # Fill in any missing dimension scores
                 for dimension in scoring_dimensions:
-                    if dimension not in risk_analysis["contract1_dimension_scores"]:
+                    dim_found = False
+                    # Check for variations of the dimension name (case insensitive, with underscores/spaces)
+                    for existing_dim in risk_analysis["contract1_dimension_scores"].keys():
+                        if normalize_dimension_name(dimension) == normalize_dimension_name(existing_dim):
+                            dim_found = True
+                            break
+                    
+                    if not dim_found:
                         idx = scoring_dimensions.index(dimension) % len(base_scores)
                         risk_analysis["contract1_dimension_scores"][dimension] = base_scores[idx]
-                    if dimension not in risk_analysis["contract2_dimension_scores"]:
-                        idx = (scoring_dimensions.index(dimension) + 3) % len(base_scores)
-                        risk_analysis["contract2_dimension_scores"][dimension] = base_scores[idx]
+                        risk_analysis["contract2_dimension_scores"][dimension] = 100 - base_scores[idx]
                 
-                # Apply any custom weights to adjust scores if provided
+                # Apply any custom weights to adjust overall scores if provided
                 if custom_weights and isinstance(custom_weights, dict):
                     try:
                         # Convert any selected focus areas not in weights to equal distribution
@@ -467,10 +510,17 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
                         
                         # Use exact dimension names from scoring_dimensions
                         for dimension in scoring_dimensions:
-                            if dimension in custom_weights:
+                            # Try to find this dimension with normalization
+                            dim_to_use = None
+                            for existing_dim in risk_analysis["contract1_dimension_scores"].keys():
+                                if normalize_dimension_name(dimension) == normalize_dimension_name(existing_dim):
+                                    dim_to_use = existing_dim
+                                    break
+                            
+                            if dim_to_use and dimension in custom_weights:
                                 weight = custom_weights[dimension]
-                                c1_score += risk_analysis["contract1_dimension_scores"][dimension] * (weight / 100)
-                                c2_score += risk_analysis["contract2_dimension_scores"][dimension] * (weight / 100)
+                                c1_score += risk_analysis["contract1_dimension_scores"][dim_to_use] * (weight / 100)
+                                c2_score += risk_analysis["contract2_dimension_scores"].get(dim_to_use, 100 - risk_analysis["contract1_dimension_scores"][dim_to_use]) * (weight / 100)
                                 total_weight += weight
                         
                         # Apply the weighted scores
@@ -693,8 +743,12 @@ def main():
             with metadata_col2:
                 focus_areas = "All selected: " + ", ".join(analysis['focus_areas']) if analysis['focus_areas'] else "None"
                 st.markdown(f"**Focus Areas:** {focus_areas}")
-                if analysis['custom_prompt']:
-                    st.markdown(f"**Custom Instructions:** {analysis['custom_prompt']}")
+            
+            # Display custom instructions if any
+            if analysis.get('custom_prompt'):
+                st.markdown("---")
+                st.markdown(f"**Custom Analysis Instructions:**")
+                st.info(analysis['custom_prompt'])
             
             # Display custom area scoring if available
             if 'risk_analysis' in analysis and analysis['risk_analysis']:

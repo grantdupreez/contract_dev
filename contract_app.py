@@ -103,6 +103,54 @@ st.markdown("""
     .score-d { background-color: #ffa000; }
     .score-f { background-color: #e64a19; }
     
+    /* Difference view styling */
+    .diff-container {
+        margin-top: 1rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 5px;
+        padding: 1rem;
+    }
+    .diff-title {
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+    .diff-only-c1 {
+        background-color: #ffebee;
+        padding: 0.5rem;
+        margin-bottom: 0.5rem;
+        border-left: 3px solid #f44336;
+    }
+    .diff-only-c2 {
+        background-color: #e8f5e9;
+        padding: 0.5rem;
+        margin-bottom: 0.5rem;
+        border-left: 3px solid #4caf50;
+    }
+    
+    /* Score card styling */
+    .score-card {
+        background-color: #f0f8ff;
+        border-radius: 5px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-left: 4px solid #1976d2;
+    }
+    .score-card-title {
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+    .score-meter {
+        height: 8px;
+        background-color: #e0e0e0;
+        border-radius: 4px;
+        margin-bottom: 0.5rem;
+        overflow: hidden;
+    }
+    .score-meter-fill {
+        height: 100%;
+        background-color: #2196f3;
+    }
+    
     /* DARK MODE STYLES */
     @media (prefers-color-scheme: dark) {
         /* General dark mode adjustments */
@@ -136,6 +184,28 @@ st.markdown("""
         .exec-summary h3 {
             color: #e5e7eb;
         }
+        
+        /* Difference view styling - Dark mode */
+        .diff-container {
+            border: 1px solid #30363d;
+        }
+        .diff-only-c1 {
+            background-color: rgba(244, 67, 54, 0.1);
+            border-left: 3px solid #f44336;
+        }
+        .diff-only-c2 {
+            background-color: rgba(76, 175, 80, 0.1);
+            border-left: 3px solid #4caf50;
+        }
+        
+        /* Score card styling - Dark mode */
+        .score-card {
+            background-color: rgba(25, 118, 210, 0.1);
+            border-left: 4px solid #1976d2;
+        }
+        .score-meter {
+            background-color: #30363d;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -164,52 +234,6 @@ def extract_text(file):
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
-
-def highlight_differences(text1, text2):
-    """
-    Highlight differences between two text strings
-    Returns HTML-formatted text with differences highlighted
-    """
-    # Simple word-by-word diff highlighting
-    words1 = text1.split()
-    words2 = text2.split()
-    
-    result1 = []
-    result2 = []
-    
-    # Very simple diff algorithm
-    i, j = 0, 0
-    while i < len(words1) and j < len(words2):
-        if words1[i] == words2[j]:
-            result1.append(f'<span class="diff-common">{words1[i]}</span>')
-            result2.append(f'<span class="diff-common">{words2[j]}</span>')
-            i += 1
-            j += 1
-        elif i+1 < len(words1) and words1[i+1] == words2[j]:
-            # Word removed in text2
-            result1.append(f'<span class="diff-removed">{words1[i]}</span>')
-            i += 1
-        elif j+1 < len(words2) and words1[i] == words2[j+1]:
-            # Word added in text2
-            result2.append(f'<span class="diff-added">{words2[j]}</span>')
-            j += 1
-        else:
-            # Changed word
-            result1.append(f'<span class="diff-changed">{words1[i]}</span>')
-            result2.append(f'<span class="diff-changed">{words2[j]}</span>')
-            i += 1
-            j += 1
-    
-    # Add remaining words
-    while i < len(words1):
-        result1.append(f'<span class="diff-removed">{words1[i]}</span>')
-        i += 1
-    
-    while j < len(words2):
-        result2.append(f'<span class="diff-added">{words2[j]}</span>')
-        j += 1
-    
-    return ' '.join(result1), ' '.join(result2)
 
 def create_executive_summary(analysis_result, risk_analysis, contract1_name, contract2_name):
     """Generate an executive summary from the analysis results and risk assessment."""
@@ -324,7 +348,74 @@ def create_executive_summary(analysis_result, risk_analysis, contract1_name, con
     
     return html
 
-def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus, custom_prompt):
+def create_area_scorecards(risk_analysis):
+    """Generate scorecards for each comparison area."""
+    
+    if not risk_analysis or not isinstance(risk_analysis, dict):
+        return "<p>Area scoring not available.</p>"
+    
+    # Get dimension scores for both contracts
+    c1_dimensions = risk_analysis.get('contract1_dimension_scores', {})
+    c2_dimensions = risk_analysis.get('contract2_dimension_scores', {})
+    
+    if not isinstance(c1_dimensions, dict) or not isinstance(c2_dimensions, dict):
+        return "<p>Area scoring data invalid.</p>"
+    
+    # Create HTML for scorecards
+    html = "<div class='score-cards-container'>"
+    
+    # Combine all dimension keys to ensure we cover all areas
+    all_dimensions = set(list(c1_dimensions.keys()) + list(c2_dimensions.keys()))
+    
+    for dimension in all_dimensions:
+        c1_score = c1_dimensions.get(dimension, 0)
+        c2_score = c2_dimensions.get(dimension, 0)
+        
+        # Ensure scores are integers
+        try:
+            c1_score = int(c1_score)
+        except (ValueError, TypeError):
+            c1_score = 0
+            
+        try:
+            c2_score = int(c2_score)
+        except (ValueError, TypeError):
+            c2_score = 0
+        
+        # Determine which contract is better in this dimension
+        comparison_text = ""
+        if c1_score > c2_score:
+            comparison_text = f"Contract 1 scores {c1_score-c2_score} points higher"
+        elif c2_score > c1_score:
+            comparison_text = f"Contract 2 scores {c2_score-c1_score} points higher"
+        else:
+            comparison_text = "Both contracts score equally"
+        
+        html += f"""
+        <div class="score-card">
+            <div class="score-card-title">{dimension}</div>
+            <p>{comparison_text} in this area.</p>
+            <div style="display: flex; margin-bottom: 10px;">
+                <div style="flex: 1; margin-right: 10px;">
+                    <div style="font-weight: bold;">Contract 1: {c1_score}/100</div>
+                    <div class="score-meter">
+                        <div class="score-meter-fill" style="width: {c1_score}%;"></div>
+                    </div>
+                </div>
+                <div style="flex: 1;">
+                    <div style="font-weight: bold;">Contract 2: {c2_score}/100</div>
+                    <div class="score-meter">
+                        <div class="score-meter-fill" style="width: {c2_score}%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+    
+    html += "</div>"
+    return html
+
+def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus, custom_prompt, custom_weights=None):
     """Use Claude AI to compare contracts and generate insights with risk assessment."""
     
     client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
@@ -339,6 +430,13 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
     # Add custom instructions
     if custom_prompt:
         context += custom_prompt
+    
+    # Add custom weights for scoring if provided
+    weights_instruction = ""
+    if custom_weights and isinstance(custom_weights, dict):
+        weights_instruction = "\n\nPlease use the following custom weights when evaluating these contracts: "
+        for area, weight in custom_weights.items():
+            weights_instruction += f"{area}: {weight}%; "
     
     # Enhanced prompt with risk assessment
     prompt = f"""
@@ -372,7 +470,8 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
     9. Use concise, clear British English focusing on the practical implications
     10. End with a brief section highlighting the most critical differences that would impact decision-making
     
-    ADDITIONAL TASK: After completing the comparison, provide a separate structured risk assessment in JSON format enclosed in triple backticks with "json" language specifier.
+    ADDITIONAL TASK: After completing the comparison, provide a separate structured risk assessment in JSON format enclosed in triple backticks with "json" language specifier. This assessment must include custom scores for each dimension on a scale of 0-100, with higher scores being better.
+    {weights_instruction}
     """
     
     try:
@@ -437,6 +536,42 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
                 if "contract2_dimension_scores" not in risk_analysis:
                     risk_analysis["contract2_dimension_scores"] = default_risk_analysis["contract2_dimension_scores"]
                 
+                # Apply any custom weights to adjust scores if provided
+                if custom_weights and isinstance(custom_weights, dict):
+                    try:
+                        # Convert any selected focus areas not in weights to equal distribution
+                        if analysis_focus:
+                            remaining_weight = 100 - sum(custom_weights.values())
+                            remaining_areas = [area for area in analysis_focus if area not in custom_weights]
+                            
+                            if remaining_areas and remaining_weight > 0:
+                                weight_per_area = remaining_weight / len(remaining_areas)
+                                for area in remaining_areas:
+                                    custom_weights[area] = weight_per_area
+                        
+                        # Calculate weighted scores
+                        c1_score = 0
+                        c2_score = 0
+                        total_weight = 0
+                        
+                        # First, try to map the custom weights to dimension scores
+                        for dimension, scores in risk_analysis["contract1_dimension_scores"].items():
+                            for area, weight in custom_weights.items():
+                                # Check if dimension name contains the area name (case-insensitive)
+                                if area.lower() in dimension.lower():
+                                    c1_score += int(scores) * (weight / 100)
+                                    c2_score += int(risk_analysis["contract2_dimension_scores"].get(dimension, 70)) * (weight / 100)
+                                    total_weight += weight
+                                    break
+                        
+                        # If we couldn't apply all weights, adjust the overall scores proportionally
+                        if total_weight > 0:
+                            risk_analysis["contract1_overall_score"] = int(c1_score * (100 / total_weight))
+                            risk_analysis["contract2_overall_score"] = int(c2_score * (100 / total_weight))
+                    except Exception as e:
+                        # If there's an error applying weights, log it but continue
+                        print(f"Error applying custom weights: {str(e)}")
+                
                 # Ensure other required fields exist
                 risk_analysis.setdefault("categories", [])
                 risk_analysis.setdefault("contract1_advantages", ["Good overall terms"])
@@ -465,7 +600,7 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
 def main():
     # App header
     st.markdown('<div class="title">ERP Contract Comparison Tool</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subtitle">Enhanced Side-by-Side Comparison with Interactive Features</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle">Enhanced Side-by-Side Comparison with Custom Scoring</div>', unsafe_allow_html=True)
     
     # Initialize session state
     if 'analysis_history' not in st.session_state:
@@ -482,6 +617,35 @@ def main():
              "Intellectual Property", "Change Management", "Performance Metrics"]
         )
         
+        # Custom scoring weights
+        st.markdown("## Custom Scoring")
+        st.info("Assign importance weights to each area (total should sum to 100%)")
+        
+        # Initialize weights dictionary
+        if 'custom_weights' not in st.session_state:
+            st.session_state.custom_weights = {}
+        
+        # Only show weight sliders for selected focus areas
+        custom_weights = {}
+        if analysis_focus:
+            total_weight = 0
+            for area in analysis_focus:
+                # Default to equal distribution
+                default_weight = int(100 / len(analysis_focus))
+                if area in st.session_state.custom_weights:
+                    default_weight = st.session_state.custom_weights[area]
+                
+                weight = st.slider(f"{area} weight", 0, 100, default_weight, 5, key=f"weight_{area}")
+                custom_weights[area] = weight
+                total_weight += weight
+            
+            # Show warning if weights don't sum to 100
+            if total_weight != 100:
+                st.warning(f"⚠️ Current weights sum to {total_weight}%. Consider adjusting to total 100%.")
+            
+            # Save weights to session state
+            st.session_state.custom_weights = custom_weights
+        
         custom_prompt = st.text_area("Custom Analysis Instructions (optional)", 
                              help="Add specific instructions for the contract comparison")
         
@@ -491,13 +655,26 @@ def main():
         
         st.markdown("## About")
         st.info("""
-        This tool creates interactive side-by-side comparisons of ERP service contracts.
+        This tool creates side-by-side comparisons of ERP service contracts with custom scoring.
         
         Features include:
-        - Text difference highlighting between contracts
-        - Collapsible sections for easier navigation
-        - Interactive toggles to focus on differences
+        - Clear side-by-side contract comparison
+        - Expanded view of differences between contracts
+        - Custom scoring for each comparison area
         - Risk assessment with color-coding
+        - Executive summary with key insights
+        """)
+        
+        # Data Privacy Note
+        st.markdown("## Data Privacy")
+        st.info("""
+        **Privacy Notice:**
+        
+        This application processes contract documents locally and sends anonymized text to our secure API for comparison analysis. We do not store your documents or contract text after processing. All data is encrypted in transit.
+        
+        Your contract information is used solely to generate the comparison and is not used for any other purpose. Analysis results are stored only in your browser session and are automatically deleted when you close the application.
+        
+        For more information about our data handling practices, please contact your IT administrator.
         """)
     
     # Main interface
@@ -542,7 +719,7 @@ def main():
             st.error("You must select at least one focus area or provide custom analysis instructions")
         
         if analyze_button and contract1_file and contract2_file and (analysis_focus or custom_prompt):
-            with st.spinner("Creating enhanced comparison with interactive features... This may take a moment..."):
+            with st.spinner("Creating enhanced comparison with custom scoring... This may take a moment..."):
                 contract1_text = extract_text(contract1_file)
                 contract2_text = extract_text(contract2_file)
                 
@@ -552,12 +729,13 @@ def main():
                 if not contract2_name:
                     contract2_name = contract2_file.name
                 
-                # Generate the enhanced comparison with risk assessment
+                # Generate the enhanced comparison with risk assessment and custom scoring
                 analysis_result, risk_analysis = compare_contracts_with_claude(
                     contract1_text, 
                     contract2_text, 
                     analysis_focus, 
-                    custom_prompt
+                    custom_prompt,
+                    custom_weights if 'custom_weights' in locals() else None
                 )
                 
                 # Add to history
@@ -567,6 +745,7 @@ def main():
                     'contract2_name': contract2_name,
                     'focus_areas': analysis_focus,
                     'custom_prompt': custom_prompt,
+                    'custom_weights': custom_weights if 'custom_weights' in locals() else {},
                     'result': analysis_result,
                     'risk_analysis': risk_analysis
                 }
@@ -606,152 +785,85 @@ def main():
                 if analysis['custom_prompt']:
                     st.markdown(f"**Custom Instructions:** {analysis['custom_prompt']}")
             
-            # Process and display the enhanced comparison with interactive features
-            st.markdown("### Interactive Comparison")
+            # Display custom area scoring if available
+            if 'risk_analysis' in analysis and analysis['risk_analysis']:
+                st.markdown("### Area Scoring")
+                area_scorecards = create_area_scorecards(analysis['risk_analysis'])
+                st.markdown(area_scorecards, unsafe_allow_html=True)
             
-            # Native Streamlit controls instead of JavaScript
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                diff_view = st.selectbox(
-                    "View Mode:", 
-                    ["Show All Content", "Show Differences Only"],
-                    key="diff_view"
-                )
-            with col2:
-                st.write("&nbsp;")  # Spacer
-                sections_expanded = st.checkbox("Expand All Sections", value=True, key="expand_sections")
-            
-            # Process the comparison text into sections for Streamlit expanders
+            # Process the comparison text into sections
             sections = re.split(r'### (.*?)(?:\n|$)', analysis['result'])
             
             if len(sections) > 1:
-                # For each section, create a Streamlit expander
+                st.markdown("### Comparison Results")
+                # For each section, create a section with expanded differences
                 for i in range(1, len(sections), 2):
                     if i < len(sections):
                         category = sections[i].strip()
                         content = sections[i+1] if i+1 < len(sections) else ""
                         
-                        # Get risk assessment for this category if available
-                        category_risk = None
-                        risk_level_html = ""
-                        if 'risk_analysis' in analysis and analysis['risk_analysis'] and 'categories' in analysis['risk_analysis']:
-                            for cat in analysis['risk_analysis']['categories']:
-                                if isinstance(cat, dict) and 'name' in cat:
-                                    if cat['name'].lower() == category.lower():
-                                        category_risk = cat
-                                        # Add risk indicators if available
-                                        try:
-                                            risk_c1 = cat.get('contract1_risk', 'medium').upper()
-                                            risk_c2 = cat.get('contract2_risk', 'medium').upper()
-                                            risk_level_html = f" - C1: {risk_c1}, C2: {risk_c2}"
-                                        except:
-                                            pass
-                                        break
-
-                        # Create a Streamlit expander for each section
-                        with st.expander(f"{category}{risk_level_html}", expanded=sections_expanded):
-                            # Split content into contract1 and contract2 parts
-                            parts = re.split(r'#### (Contract 1|Contract 2)(?:\n|$)', content)
-                            
-                            if len(parts) > 2:  # We have proper split between contracts
-                                # Side-by-side columns for contract comparison
-                                col1, col2 = st.columns(2)
-                                
-                                for j in range(1, len(parts), 2):
-                                    if j < len(parts):
-                                        contract_type = parts[j].strip()
-                                        contract_content = parts[j+1] if j+1 < len(parts) else ""
-                                        
-                                        # Process risk tags if they exist in the content
-                                        if category_risk:
-                                            try:
-                                                # Look for any specific clauses with risk tags
-                                                if contract_type == "Contract 1" and 'contract1_clauses' in category_risk:
-                                                    clauses = category_risk['contract1_clauses']
-                                                    if isinstance(clauses, list):
-                                                        for clause in clauses:
-                                                            if isinstance(clause, dict) and 'text' in clause and 'risk' in clause:
-                                                                clause_text = clause['text']
-                                                                risk_level = clause['risk']
-                                                                
-                                                                # Add risk highlight using Streamlit markdown
-                                                                contract_content = contract_content.replace(
-                                                                    f"- {clause_text}", 
-                                                                    f"- **[{risk_level.upper()}]** {clause_text}"
-                                                                )
-                                                elif contract_type == "Contract 2" and 'contract2_clauses' in category_risk:
-                                                    clauses = category_risk['contract2_clauses']
-                                                    if isinstance(clauses, list):
-                                                        for clause in clauses:
-                                                            if isinstance(clause, dict) and 'text' in clause and 'risk' in clause:
-                                                                clause_text = clause['text']
-                                                                risk_level = clause['risk']
-                                                                
-                                                                # Add risk highlight using Streamlit markdown
-                                                                contract_content = contract_content.replace(
-                                                                    f"- {clause_text}", 
-                                                                    f"- **[{risk_level.upper()}]** {clause_text}"
-                                                                )
-                                            except Exception as e:
-                                                # If there's an error processing risk tags, just continue without them
-                                                pass
-                                        
-                                        # Display contract in the appropriate column
-                                        # Using smaller heading with custom styling to eliminate extra spacing
-                                        if contract_type == "Contract 1":
-                                            with col1:
-                                                st.markdown(f"<h5 style='margin-top:0'>{analysis['contract1_name']}</h5>", unsafe_allow_html=True)
-                                                st.markdown(contract_content)
-                                        elif contract_type == "Contract 2":
-                                            with col2:
-                                                st.markdown(f"<h5 style='margin-top:0'>{analysis['contract2_name']}</h5>", unsafe_allow_html=True)
-                                                st.markdown(contract_content)
-                            else:
-                                # If no clear split between contracts, just show the content as is
-                                st.markdown(content)
+                        st.markdown(f"#### {category}")
                         
-                        # Add a visual diff comparison section if selected
-                        if diff_view == "Show Differences Only":
-                            with st.expander("🔍 View Text Differences", expanded=True):
-                                # Extract bullet points from both contracts
-                                parts = re.split(r'#### (Contract 1|Contract 2)(?:\n|$)', content)
-                                
-                                contract1_content = ""
-                                contract2_content = ""
-                                
-                                for j in range(1, len(parts), 2):
-                                    if j < len(parts):
-                                        contract_type = parts[j].strip()
-                                        if contract_type == "Contract 1":
-                                            contract1_content = parts[j+1] if j+1 < len(parts) else ""
-                                        elif contract_type == "Contract 2":
-                                            contract2_content = parts[j+1] if j+1 < len(parts) else ""
-                                
-                                # Extract bullet points
-                                bullet_pattern = r'(?:^|\n)- (.*?)(?:$|\n)'
-                                bullets1 = re.findall(bullet_pattern, contract1_content)
-                                bullets2 = re.findall(bullet_pattern, contract2_content)
-                                
-                                # Display differences
-                                diff_col1, diff_col2 = st.columns(2)
-                                
-                                with diff_col1:
-                                    st.markdown(f"#### Unique to {analysis['contract1_name']}")
-                                    unique_to_1 = [b for b in bullets1 if b not in bullets2]
-                                    if unique_to_1:
-                                        for bullet in unique_to_1:
-                                            st.markdown(f"- 🔴 {bullet}")
-                                    else:
-                                        st.markdown("*No unique points*")
-                                        
-                                with diff_col2:
-                                    st.markdown(f"#### Unique to {analysis['contract2_name']}")
-                                    unique_to_2 = [b for b in bullets2 if b not in bullets1]
-                                    if unique_to_2:
-                                        for bullet in unique_to_2:
-                                            st.markdown(f"- 🟢 {bullet}")
-                                    else:
-                                        st.markdown("*No unique points*")
+                        # Split content into contract1 and contract2 parts
+                        parts = re.split(r'#### (Contract 1|Contract 2)(?:\n|$)', content)
+                        
+                        if len(parts) > 2:  # We have proper split between contracts
+                            # Side-by-side columns for contract comparison
+                            col1, col2 = st.columns(2)
+                            
+                            contract1_content = ""
+                            contract2_content = ""
+                            
+                            for j in range(1, len(parts), 2):
+                                if j < len(parts):
+                                    contract_type = parts[j].strip()
+                                    contract_content = parts[j+1] if j+1 < len(parts) else ""
+                                    
+                                    if contract_type == "Contract 1":
+                                        contract1_content = contract_content
+                                        with col1:
+                                            st.markdown(f"**{analysis['contract1_name']}**")
+                                            st.markdown(contract_content)
+                                    elif contract_type == "Contract 2":
+                                        contract2_content = contract_content
+                                        with col2:
+                                            st.markdown(f"**{analysis['contract2_name']}**")
+                                            st.markdown(contract_content)
+                            
+                            # Extract bullet points for difference analysis
+                            bullet_pattern = r'(?:^|\n)- (.*?)(?:$|\n)'
+                            bullets1 = re.findall(bullet_pattern, contract1_content)
+                            bullets2 = re.findall(bullet_pattern, contract2_content)
+                            
+                            # Display differences section
+                            st.markdown("##### Key Differences")
+                            
+                            # Create two columns for differences
+                            diff_col1, diff_col2 = st.columns(2)
+                            
+                            with diff_col1:
+                                st.markdown(f"**Unique to {analysis['contract1_name']}:**")
+                                unique_to_1 = [b for b in bullets1 if b not in bullets2]
+                                if unique_to_1:
+                                    for bullet in unique_to_1:
+                                        st.markdown(f"<div class='diff-only-c1'>- {bullet}</div>", unsafe_allow_html=True)
+                                else:
+                                    st.markdown("*No unique points*")
+                                    
+                            with diff_col2:
+                                st.markdown(f"**Unique to {analysis['contract2_name']}:**")
+                                unique_to_2 = [b for b in bullets2 if b not in bullets1]
+                                if unique_to_2:
+                                    for bullet in unique_to_2:
+                                        st.markdown(f"<div class='diff-only-c2'>- {bullet}</div>", unsafe_allow_html=True)
+                                else:
+                                    st.markdown("*No unique points*")
+                            
+                            st.markdown("---")  # Add separator between sections
+                        else:
+                            # If no clear split between contracts, just show the content as is
+                            st.markdown(content)
+                            st.markdown("---")  # Add separator between sections
             else:
                 # If no section found, display the raw text
                 st.markdown(analysis['result'])

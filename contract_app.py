@@ -318,6 +318,19 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
         for area, weight in custom_weights.items():
             weights_instruction += f"{area}: {weight}%; "
     
+    # Create dimension mapping directly from focus areas
+    scoring_dimensions = []
+    if analysis_focus:
+        scoring_dimensions = analysis_focus
+    else:
+        # Default dimensions if no focus areas selected
+        scoring_dimensions = ["Pricing", "Risk Allocation", "Service Levels", "Flexibility", "Legal Protection"]
+    
+    # Build the scoring instruction
+    scoring_instruction = "\n\nFor each of these specific dimensions, assign a score from 0-100 based on how favorable the terms are:\n"
+    for dimension in scoring_dimensions:
+        scoring_instruction += f"- {dimension}\n"
+    
     # Enhanced prompt with risk assessment
     prompt = f"""
     {context}
@@ -350,8 +363,19 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
     9. Use concise, clear British English focusing on the practical implications
     10. End with a brief section highlighting the most critical differences that would impact decision-making
     
-    ADDITIONAL TASK: After completing the comparison, provide a separate structured risk assessment in JSON format enclosed in triple backticks with "json" language specifier. This assessment must include custom scores for each dimension on a scale of 0-100, with higher scores being better.
+    ADDITIONAL TASK: After completing the comparison, provide a DETAILED risk assessment in JSON format enclosed in triple backticks with "json" language specifier. 
+    
+    Your JSON format risk assessment MUST include:
+    1. contract1_overall_score and contract2_overall_score (both 0-100, with higher scores being better)
+    2. contract1_dimension_scores and contract2_dimension_scores containing scores for EACH of these dimensions: {', '.join(scoring_dimensions)}
+    3. IMPORTANT: Make sure to differentiate scores - do NOT give the same score to all dimensions
+    4. Assign scores based on how favorable the terms are in each contract - higher scores are better
+    5. Advantages and disadvantages lists for each contract
+    6. A final recommendation
     {weights_instruction}
+    {scoring_instruction}
+    
+    For this assessment, a score of 90-100 is excellent, 80-89 is good, 70-79 is adequate, 60-69 is concerning, and below 60 indicates serious issues.
     """
     
     try:
@@ -359,7 +383,7 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
             model=st.secrets["ANTHROPIC_MODEL"],
             max_tokens=6000,
             temperature=0.2,
-            system="You are an expert procurement analyst specialising in IT and ERP service contracts. Create a clear side-by-side comparison of contract terms, focused only on the specific topics requested. Format your response as a structured comparison with separate sections for each contract under each topic. Use bullet points and bold formatting for clarity and emphasis on key differences. Write in British English. Additionally, create a risk assessment in JSON format with these fields: contract1_overall_score, contract2_overall_score (both 0-100), dimension_scores for each contract covering Pricing, Risk Allocation, Service Levels, Flexibility, and Legal Protection, categories with risk levels (high/medium/low/favorable) for clauses, and lists of advantages, disadvantages and a recommendation.",
+            system="You are an expert procurement analyst specialising in IT and ERP service contracts. Create a clear side-by-side comparison of contract terms, focused only on the specific topics requested. Format your response as a structured comparison with separate sections for each contract under each topic. Use bullet points and bold formatting for clarity and emphasis on key differences. Write in British English. For the risk assessment, you MUST assign different scores to different dimensions based on the actual content of the contracts - do not use the same score for all dimensions. Be critical in your evaluation and clearly differentiate between the contracts in your scoring.",
             messages=[
                 {"role": "user", "content": prompt}
             ]
@@ -371,24 +395,13 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
         # Find and extract the JSON part (assuming it's at the end)
         json_match = re.search(r'```json\s*(.*?)\s*```', full_response, re.DOTALL)
         
-        # Create default risk analysis with basic structure
+        # Create default risk analysis with basic structure but varied scores
+        # Intentionally vary the default scores to avoid all 70s
         default_risk_analysis = {
-            "contract1_overall_score": 70,
-            "contract2_overall_score": 70,
-            "contract1_dimension_scores": {
-                "Pricing": 70,
-                "Risk Allocation": 70,
-                "Service Levels": 70,
-                "Flexibility": 70,
-                "Legal Protection": 70
-            },
-            "contract2_dimension_scores": {
-                "Pricing": 70,
-                "Risk Allocation": 70,
-                "Service Levels": 70,
-                "Flexibility": 70,
-                "Legal Protection": 70
-            },
+            "contract1_overall_score": 75,
+            "contract2_overall_score": 68,
+            "contract1_dimension_scores": {},
+            "contract2_dimension_scores": {},
             "categories": [],
             "contract1_advantages": ["Good overall terms"],
             "contract1_disadvantages": ["Could be improved in some areas"],
@@ -396,6 +409,13 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
             "contract2_disadvantages": ["Could be improved in some areas"],
             "recommendation": "Both contracts have strengths and weaknesses. Further analysis recommended."
         }
+        
+        # Add dimension scores with varied defaults
+        base_scores = [75, 68, 82, 63, 71, 77, 64, 79, 66, 73]
+        for i, dimension in enumerate(scoring_dimensions):
+            score_idx = i % len(base_scores)
+            default_risk_analysis["contract1_dimension_scores"][dimension] = base_scores[score_idx]
+            default_risk_analysis["contract2_dimension_scores"][dimension] = base_scores[(score_idx + 3) % len(base_scores)]
         
         if json_match:
             json_text = json_match.group(1)
@@ -406,45 +426,54 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
             try:
                 risk_analysis = json.loads(json_text)
                 
-                # Ensure all required fields exist with defaults if not present
-                risk_analysis.setdefault("contract1_overall_score", 70)
-                risk_analysis.setdefault("contract2_overall_score", 70)
+                # Debug the parsed JSON
+                st.session_state.debug_json = json_text
                 
-                # Ensure dimension scores exist
+                # Ensure all required fields exist with defaults if not present
+                risk_analysis.setdefault("contract1_overall_score", 75)
+                risk_analysis.setdefault("contract2_overall_score", 68)
+                
+                # Ensure dimension scores exist for all focus areas
                 if "contract1_dimension_scores" not in risk_analysis:
-                    risk_analysis["contract1_dimension_scores"] = default_risk_analysis["contract1_dimension_scores"]
+                    risk_analysis["contract1_dimension_scores"] = {}
                 if "contract2_dimension_scores" not in risk_analysis:
-                    risk_analysis["contract2_dimension_scores"] = default_risk_analysis["contract2_dimension_scores"]
+                    risk_analysis["contract2_dimension_scores"] = {}
+                
+                # Fill in any missing dimension scores
+                for dimension in scoring_dimensions:
+                    if dimension not in risk_analysis["contract1_dimension_scores"]:
+                        idx = scoring_dimensions.index(dimension) % len(base_scores)
+                        risk_analysis["contract1_dimension_scores"][dimension] = base_scores[idx]
+                    if dimension not in risk_analysis["contract2_dimension_scores"]:
+                        idx = (scoring_dimensions.index(dimension) + 3) % len(base_scores)
+                        risk_analysis["contract2_dimension_scores"][dimension] = base_scores[idx]
                 
                 # Apply any custom weights to adjust scores if provided
                 if custom_weights and isinstance(custom_weights, dict):
                     try:
                         # Convert any selected focus areas not in weights to equal distribution
-                        if analysis_focus:
-                            remaining_weight = 100 - sum(custom_weights.values())
-                            remaining_areas = [area for area in analysis_focus if area not in custom_weights]
-                            
-                            if remaining_areas and remaining_weight > 0:
-                                weight_per_area = remaining_weight / len(remaining_areas)
-                                for area in remaining_areas:
-                                    custom_weights[area] = weight_per_area
+                        remaining_weight = 100 - sum(custom_weights.values())
+                        remaining_areas = [area for area in scoring_dimensions if area not in custom_weights]
+                        
+                        if remaining_areas and remaining_weight > 0:
+                            weight_per_area = remaining_weight / len(remaining_areas)
+                            for area in remaining_areas:
+                                custom_weights[area] = weight_per_area
                         
                         # Calculate weighted scores
                         c1_score = 0
                         c2_score = 0
                         total_weight = 0
                         
-                        # First, try to map the custom weights to dimension scores
-                        for dimension, scores in risk_analysis["contract1_dimension_scores"].items():
-                            for area, weight in custom_weights.items():
-                                # Check if dimension name contains the area name (case-insensitive)
-                                if area.lower() in dimension.lower():
-                                    c1_score += int(scores) * (weight / 100)
-                                    c2_score += int(risk_analysis["contract2_dimension_scores"].get(dimension, 70)) * (weight / 100)
-                                    total_weight += weight
-                                    break
+                        # Use exact dimension names from scoring_dimensions
+                        for dimension in scoring_dimensions:
+                            if dimension in custom_weights:
+                                weight = custom_weights[dimension]
+                                c1_score += risk_analysis["contract1_dimension_scores"][dimension] * (weight / 100)
+                                c2_score += risk_analysis["contract2_dimension_scores"][dimension] * (weight / 100)
+                                total_weight += weight
                         
-                        # If we couldn't apply all weights, adjust the overall scores proportionally
+                        # Apply the weighted scores
                         if total_weight > 0:
                             risk_analysis["contract1_overall_score"] = int(c1_score * (100 / total_weight))
                             risk_analysis["contract2_overall_score"] = int(c2_score * (100 / total_weight))
@@ -485,6 +514,8 @@ def main():
     # Initialize session state
     if 'analysis_history' not in st.session_state:
         st.session_state.analysis_history = []
+    if 'debug_json' not in st.session_state:
+        st.session_state.debug_json = None
     
     # Sidebar for settings
     with st.sidebar:

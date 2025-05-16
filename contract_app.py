@@ -697,13 +697,14 @@ def main():
                                                 pass
                                         
                                         # Display contract in the appropriate column
+                                        # Here's the change to fix the formatting issue
                                         if contract_type == "Contract 1":
                                             with col1:
-                                                st.markdown(f"### {analysis['contract1_name']}")
+                                                st.markdown(f"**{analysis['contract1_name']}**")  # Use bold instead of heading
                                                 st.markdown(contract_content)
                                         elif contract_type == "Contract 2":
                                             with col2:
-                                                st.markdown(f"### {analysis['contract2_name']}")
+                                                st.markdown(f"**{analysis['contract2_name']}**")  # Use bold instead of heading
                                                 st.markdown(contract_content)
                             else:
                                 # If no clear split between contracts, just show the content as is

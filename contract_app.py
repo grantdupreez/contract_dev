@@ -49,163 +49,31 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS for better styling with enhanced color coding and visualization
+# CSS for better styling
 st.markdown("""
 <style>
+    /* Basic page styling */
     .main { padding: 2rem; }
-    .title { font-size: 2.5rem; font-weight: bold; margin-bottom: 1rem; }
-    .subtitle { font-size: 1.5rem; margin-bottom: 2rem; }
-    .section-header { font-size: 1.8rem; font-weight: bold; margin: 1.5rem 0 1rem 0; 
-                    padding-bottom: 0.5rem; border-bottom: 2px solid #f0f2f6; }
-    .info-box { background-color: #f8f9fa; padding: 1rem; border-radius: 5px; margin-bottom: 1rem; }
-    .highlight { background-color: #ffffcc; padding: 2px; }
-    .suggestion { background-color: #e6f7ff; padding: 1rem; border-radius: 5px; 
-                margin: 1rem 0; border-left: 4px solid #1890ff; }
-    .risk { background-color: #fff2f0; padding: 1rem; border-radius: 5px; 
-          margin: 1rem 0; border-left: 4px solid #ff4d4f; }
-    .opportunity { background-color: #f6ffed; padding: 1rem; border-radius: 5px; 
-                 margin: 1rem 0; border-left: 4px solid #52c41a; }
     
-    /* Risk level indicators - Light mode */
-    .risk-high { background-color: #ffcdd2; color: #c62828; padding: 0.2rem 0.5rem; border-radius: 3px; font-weight: bold; }
-    .risk-medium { background-color: #fff9c4; color: #f57f17; padding: 0.2rem 0.5rem; border-radius: 3px; font-weight: bold; }
-    .risk-low { background-color: #dcedc8; color: #33691e; padding: 0.2rem 0.5rem; border-radius: 3px; font-weight: bold; }
-    .risk-favorable { background-color: #bbdefb; color: #0d47a1; padding: 0.2rem 0.5rem; border-radius: 3px; font-weight: bold; }
-    
-    /* Executive summary styling - Light mode */
-    .exec-summary {
-        background-color: #f5f7fa;
-        border-radius: 8px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-        border-left: 5px solid #1890ff;
-    }
-    .exec-summary h3 {
-        margin-top: 0;
-        color: #1f3a60;
-    }
-    .exec-summary .key-points {
-        margin-top: 0.75rem;
-    }
-    .score-pill {
-        display: inline-block;
-        padding: 0.35rem 0.65rem;
-        border-radius: 1rem;
-        font-weight: bold;
-        color: white;
-        background-color: #4caf50;
-        margin-right: 0.5rem;
-        font-size: 0.9rem;
-    }
-    .score-a { background-color: #388e3c; }
-    .score-b { background-color: #689f38; }
-    .score-c { background-color: #afb42b; }
-    .score-d { background-color: #ffa000; }
-    .score-f { background-color: #e64a19; }
-    
-    /* Difference view styling */
-    .diff-container {
-        margin-top: 1rem;
-        border: 1px solid #e0e0e0;
-        border-radius: 5px;
-        padding: 1rem;
-    }
-    .diff-title {
-        font-weight: bold;
-        margin-bottom: 0.5rem;
-    }
-    .diff-only-c1 {
-        background-color: #ffebee;
-        padding: 0.5rem;
-        margin-bottom: 0.5rem;
-        border-left: 3px solid #f44336;
-    }
-    .diff-only-c2 {
-        background-color: #e8f5e9;
-        padding: 0.5rem;
-        margin-bottom: 0.5rem;
-        border-left: 3px solid #4caf50;
+    /* Custom header styles */
+    .title-text { 
+        font-size: 2.5rem; 
+        font-weight: bold; 
+        margin-bottom: 1rem; 
     }
     
-    /* Score card styling */
-    .score-card {
-        background-color: #f0f8ff;
-        border-radius: 5px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border-left: 4px solid #1976d2;
-    }
-    .score-card-title {
-        font-weight: bold;
-        margin-bottom: 0.5rem;
-    }
-    .score-meter {
-        height: 8px;
-        background-color: #e0e0e0;
-        border-radius: 4px;
-        margin-bottom: 0.5rem;
-        overflow: hidden;
-    }
-    .score-meter-fill {
-        height: 100%;
-        background-color: #2196f3;
+    .subtitle-text { 
+        font-size: 1.5rem; 
+        margin-bottom: 2rem; 
     }
     
-    /* DARK MODE STYLES */
-    @media (prefers-color-scheme: dark) {
-        /* General dark mode adjustments */
-        .section-header { 
-            border-bottom: 2px solid #30363d; 
-        }
-        
-        /* Risk level indicators - Dark mode */
-        .risk-high { 
-            background-color: rgba(220, 38, 38, 0.2); 
-            color: #ef4444; 
-        }
-        .risk-medium { 
-            background-color: rgba(245, 158, 11, 0.2); 
-            color: #f59e0b; 
-        }
-        .risk-low { 
-            background-color: rgba(16, 185, 129, 0.2); 
-            color: #10b981; 
-        }
-        .risk-favorable { 
-            background-color: rgba(59, 130, 246, 0.2); 
-            color: #3b82f6; 
-        }
-        
-        /* Executive summary styling - Dark mode */
-        .exec-summary {
-            background-color: #1f2937;
-            border-left: 5px solid #3b82f6;
-        }
-        .exec-summary h3 {
-            color: #e5e7eb;
-        }
-        
-        /* Difference view styling - Dark mode */
-        .diff-container {
-            border: 1px solid #30363d;
-        }
-        .diff-only-c1 {
-            background-color: rgba(244, 67, 54, 0.1);
-            border-left: 3px solid #f44336;
-        }
-        .diff-only-c2 {
-            background-color: rgba(76, 175, 80, 0.1);
-            border-left: 3px solid #4caf50;
-        }
-        
-        /* Score card styling - Dark mode */
-        .score-card {
-            background-color: rgba(25, 118, 210, 0.1);
-            border-left: 4px solid #1976d2;
-        }
-        .score-meter {
-            background-color: #30363d;
-        }
+    /* Section headers */
+    .section-header-custom { 
+        font-size: 1.8rem; 
+        font-weight: bold; 
+        margin: 1.5rem 0 1rem 0; 
+        padding-bottom: 0.5rem; 
+        border-bottom: 2px solid #e0e0e0; 
     }
 </style>
 """, unsafe_allow_html=True)
@@ -239,7 +107,7 @@ def create_executive_summary(analysis_result, risk_analysis, contract1_name, con
     """Generate an executive summary from the analysis results and risk assessment."""
     
     if not risk_analysis:
-        return "<div class='exec-summary'><h3>Executive Summary</h3><p>Risk analysis data not available. Please rerun the comparison.</p></div>"
+        return "<div style='background-color: #f5f7fa; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; border-left: 5px solid #1890ff;'><h3 style='margin-top: 0; color: #1f3a60;'>Executive Summary</h3><p>Risk analysis data not available. Please rerun the comparison.</p></div>"
     
     # Get overall scores and ensure they are integers
     try:
@@ -268,6 +136,17 @@ def create_executive_summary(analysis_result, risk_analysis, contract1_name, con
     c1_grade = get_letter_grade(c1_score)
     c2_grade = get_letter_grade(c2_score)
     
+    # Get background color for grade pills
+    def get_grade_color(grade):
+        if grade == "A": return "#388e3c"
+        elif grade == "B": return "#689f38"
+        elif grade == "C": return "#afb42b"
+        elif grade == "D": return "#ffa000"
+        else: return "#e64a19"
+    
+    c1_color = get_grade_color(c1_grade)
+    c2_color = get_grade_color(c2_grade)
+    
     # Get key advantages and disadvantages
     c1_advantages = risk_analysis.get('contract1_advantages', ['No specific advantages identified'])
     c1_disadvantages = risk_analysis.get('contract1_disadvantages', ['No specific disadvantages identified'])
@@ -289,14 +168,14 @@ def create_executive_summary(analysis_result, risk_analysis, contract1_name, con
     if not recommendation or not isinstance(recommendation, str):
         recommendation = 'Further detailed analysis recommended.'
     
-    # Create the summary HTML
+    # Create the summary HTML with inline styles instead of classes
     html = f"""
-    <div class="exec-summary">
-        <h3>Executive Summary: Contract Comparison</h3>
-        <div class="side-by-side">
-            <div class="contract-col">
+    <div style="background-color: #f5f7fa; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; border-left: 5px solid #1890ff;">
+        <h3 style="margin-top: 0; color: #1f3a60;">Executive Summary: Contract Comparison</h3>
+        <div style="display: flex; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 300px; padding-right: 15px; margin-bottom: 15px;">
                 <h4>{contract1_name}</h4>
-                <p><span class="score-pill score-{c1_grade.lower()}">{c1_grade}</span> Overall Score: {c1_score}/100</p>
+                <p><span style="display: inline-block; padding: 0.35rem 0.65rem; border-radius: 1rem; font-weight: bold; color: white; background-color: {c1_color}; margin-right: 0.5rem; font-size: 0.9rem;">{c1_grade}</span> Overall Score: {c1_score}/100</p>
                 <h5>Key Advantages</h5>
                 <ul>
     """
@@ -316,9 +195,9 @@ def create_executive_summary(analysis_result, risk_analysis, contract1_name, con
     html += f"""
                 </ul>
             </div>
-            <div class="contract-col">
+            <div style="flex: 1; min-width: 300px; padding-left: 15px; margin-bottom: 15px;">
                 <h4>{contract2_name}</h4>
-                <p><span class="score-pill score-{c2_grade.lower()}">{c2_grade}</span> Overall Score: {c2_score}/100</p>
+                <p><span style="display: inline-block; padding: 0.35rem 0.65rem; border-radius: 1rem; font-weight: bold; color: white; background-color: {c2_color}; margin-right: 0.5rem; font-size: 0.9rem;">{c2_grade}</span> Overall Score: {c2_score}/100</p>
                 <h5>Key Advantages</h5>
                 <ul>
     """
@@ -340,7 +219,7 @@ def create_executive_summary(analysis_result, risk_analysis, contract1_name, con
             </div>
         </div>
         <h5>Recommendation</h5>
-        <div class="key-points">
+        <div style="margin-top: 0.75rem;">
             <p>{recommendation}</p>
         </div>
     </div>
@@ -361,8 +240,9 @@ def create_area_scorecards(risk_analysis):
     if not isinstance(c1_dimensions, dict) or not isinstance(c2_dimensions, dict):
         return "<p>Area scoring data invalid.</p>"
     
-    # Create HTML for scorecards
-    html = "<div class='score-cards-container'>"
+    # Instead of building HTML, let's use Streamlit's native components
+    # Create a container div for better styling
+    content = ""
     
     # Combine all dimension keys to ensure we cover all areas
     all_dimensions = set(list(c1_dimensions.keys()) + list(c2_dimensions.keys()))
@@ -391,29 +271,29 @@ def create_area_scorecards(risk_analysis):
         else:
             comparison_text = "Both contracts score equally"
         
-        html += f"""
-        <div class="score-card">
-            <div class="score-card-title">{dimension}</div>
+        # Add styled scorecard markup
+        content += f"""
+        <div style="background-color: #f0f8ff; border-radius: 5px; padding: 1rem; margin-bottom: 1rem; border-left: 4px solid #1976d2;">
+            <div style="font-weight: bold; margin-bottom: 0.5rem;">{dimension}</div>
             <p>{comparison_text} in this area.</p>
             <div style="display: flex; margin-bottom: 10px;">
                 <div style="flex: 1; margin-right: 10px;">
                     <div style="font-weight: bold;">Contract 1: {c1_score}/100</div>
-                    <div class="score-meter">
-                        <div class="score-meter-fill" style="width: {c1_score}%;"></div>
+                    <div style="height: 8px; background-color: #e0e0e0; border-radius: 4px; margin-bottom: 0.5rem; overflow: hidden;">
+                        <div style="height: 100%; width: {c1_score}%; background-color: #2196f3;"></div>
                     </div>
                 </div>
                 <div style="flex: 1;">
                     <div style="font-weight: bold;">Contract 2: {c2_score}/100</div>
-                    <div class="score-meter">
-                        <div class="score-meter-fill" style="width: {c2_score}%;"></div>
+                    <div style="height: 8px; background-color: #e0e0e0; border-radius: 4px; margin-bottom: 0.5rem; overflow: hidden;">
+                        <div style="height: 100%; width: {c2_score}%; background-color: #2196f3;"></div>
                     </div>
                 </div>
             </div>
         </div>
         """
     
-    html += "</div>"
-    return html
+    return content
 
 def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus, custom_prompt, custom_weights=None):
     """Use Claude AI to compare contracts and generate insights with risk assessment."""
@@ -599,8 +479,8 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
 
 def main():
     # App header
-    st.markdown('<div class="title">ERP Contract Comparison Tool</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subtitle">Enhanced Side-by-Side Comparison with Custom Scoring</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 2.5rem; font-weight: bold; margin-bottom: 1rem;">ERP Contract Comparison Tool</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 1.5rem; margin-bottom: 2rem;">Enhanced Side-by-Side Comparison with Custom Scoring</div>', unsafe_allow_html=True)
     
     # Initialize session state
     if 'analysis_history' not in st.session_state:
@@ -682,7 +562,7 @@ def main():
     
     # Contract Upload Tab
     with tab1:
-        st.markdown('<div class="section-header">Upload Contracts for Comparison</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size: 1.8rem; font-weight: bold; margin: 1.5rem 0 1rem 0; padding-bottom: 0.5rem; border-bottom: 2px solid #e0e0e0;">Upload Contracts for Comparison</div>', unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
         
@@ -761,7 +641,7 @@ def main():
         if 'current_analysis' in st.session_state:
             analysis = st.session_state.current_analysis
             
-            st.markdown(f'<div class="section-header">Enhanced Contract Comparison</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="font-size: 1.8rem; font-weight: bold; margin: 1.5rem 0 1rem 0; padding-bottom: 0.5rem; border-bottom: 2px solid #e0e0e0;">Enhanced Contract Comparison</div>', unsafe_allow_html=True)
             
             # Show executive summary if risk analysis is available
             if 'risk_analysis' in analysis and analysis['risk_analysis']:
@@ -846,7 +726,7 @@ def main():
                                 unique_to_1 = [b for b in bullets1 if b not in bullets2]
                                 if unique_to_1:
                                     for bullet in unique_to_1:
-                                        st.markdown(f"<div class='diff-only-c1'>- {bullet}</div>", unsafe_allow_html=True)
+                                        st.markdown(f"<div style='background-color: #ffebee; padding: 0.5rem; margin-bottom: 0.5rem; border-left: 3px solid #f44336;'>- {bullet}</div>", unsafe_allow_html=True)
                                 else:
                                     st.markdown("*No unique points*")
                                     
@@ -855,7 +735,7 @@ def main():
                                 unique_to_2 = [b for b in bullets2 if b not in bullets1]
                                 if unique_to_2:
                                     for bullet in unique_to_2:
-                                        st.markdown(f"<div class='diff-only-c2'>- {bullet}</div>", unsafe_allow_html=True)
+                                        st.markdown(f"<div style='background-color: #e8f5e9; padding: 0.5rem; margin-bottom: 0.5rem; border-left: 3px solid #4caf50;'>- {bullet}</div>", unsafe_allow_html=True)
                                 else:
                                     st.markdown("*No unique points*")
                             
@@ -894,7 +774,7 @@ def main():
             
     # History Tab
     with tab3:
-        st.markdown('<div class="section-header">Comparison History</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size: 1.8rem; font-weight: bold; margin: 1.5rem 0 1rem 0; padding-bottom: 0.5rem; border-bottom: 2px solid #e0e0e0;">Comparison History</div>', unsafe_allow_html=True)
         
         if st.session_state.analysis_history:
             for i, analysis in enumerate(reversed(st.session_state.analysis_history)):

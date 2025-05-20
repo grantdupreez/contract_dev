@@ -10,6 +10,8 @@ import docx
 from datetime import datetime
 import hmac
 import json
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 def check_password():
     """Returns `True` if the user had a correct password."""
@@ -75,16 +77,50 @@ st.markdown("""
         padding-bottom: 0.5rem; 
         border-bottom: 2px solid #e0e0e0; 
     }
+    
+    /* Scorecard styling */
+    .scorecard {
+        background-color: #f0f8ff; 
+        border-radius: 5px; 
+        padding: 1rem; 
+        margin-bottom: 1rem; 
+        border-left: 4px solid #1976d2;
+    }
+    
+    /* Progress bar containers */
+    .progress-container {
+        height: 8px; 
+        background-color: #e0e0e0; 
+        border-radius: 4px; 
+        margin-bottom: 0.5rem; 
+        overflow: hidden;
+    }
+    
+    /* Difference highlighting */
+    .unique-point-1 {
+        background-color: #ffebee; 
+        padding: 0.5rem; 
+        margin-bottom: 0.5rem; 
+        border-left: 3px solid #f44336;
+    }
+    
+    .unique-point-2 {
+        background-color: #e8f5e9; 
+        padding: 0.5rem; 
+        margin-bottom: 0.5rem; 
+        border-left: 3px solid #4caf50;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # Extract text functions
-def extract_text(file):
-    """Extract text from various file formats."""
-    file_extension = os.path.splitext(file.name)[1].lower()
+@st.cache_data(ttl=3600, show_spinner=False)
+def cached_extract_text(file_bytes, file_name):
+    """Cached version of text extraction to avoid reprocessing the same file"""
+    file_extension = os.path.splitext(file_name)[1].lower()
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp:
-        temp.write(file.getvalue())
+        temp.write(file_bytes)
         temp_path = temp.name
     
     try:
@@ -102,6 +138,103 @@ def extract_text(file):
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
+
+def extract_text(file):
+    """Extract text from various file formats."""
+    return cached_extract_text(file.getvalue(), file.name)
+
+def process_contracts_concurrently(contract1_file, contract2_file):
+    """Process contracts in parallel using ThreadPoolExecutor"""
+    
+    def extract_single(file):
+        return extract_text(file)
+    
+    # Use ThreadPoolExecutor for concurrent processing
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        future1 = executor.submit(extract_single, contract1_file)
+        future2 = executor.submit(extract_single, contract2_file)
+        
+        contract1_text = future1.result()
+        contract2_text = future2.result()
+        
+    return contract1_text, contract2_text
+
+def optimize_contract_for_claude(contract_text, focus_areas):
+    """Reduce token usage by focusing on relevant sections of the contract."""
+    # Define keywords for each focus area
+    focus_keywords = {
+        "Pricing Structure": ["price", "cost", "fee", "payment", "discount", "pricing", "rate", "subscription", "license", "amount", "charge", "invoice", "billing"],
+        "Service Level Agreements": ["SLA", "uptime", "response time", "availability", "service level", "maintenance", "support", "outage", "incident", "resolution", "performance", "metric"],
+        "Implementation Timeline": ["timeline", "schedule", "deadline", "milestone", "phase", "delivery", "implementation", "deploy", "rollout", "project plan", "date", "completion"],
+        "Scope of Work": ["scope", "deliverable", "requirement", "specification", "work", "service", "function", "feature", "capability", "responsibility", "exclude"],
+        "Maintenance & Support": ["maintenance", "support", "upgrade", "update", "patch", "fix", "bug", "repair", "service", "help desk", "ticket"],
+        "Data Security": ["security", "data", "privacy", "confidential", "protection", "encrypt", "breach", "compliance", "GDPR", "backup", "disaster", "recovery"],
+        "Exit Strategy": ["termination", "exit", "transition", "transfer", "handover", "wind down", "discontinue", "cease", "end", "expiration", "notice period"],
+        "Intellectual Property": ["intellectual property", "IP", "copyright", "patent", "trademark", "license", "ownership", "proprietary", "right", "title"],
+        "Change Management": ["change", "modification", "amendment", "alter", "adjust", "variation", "control", "request", "manage", "process", "procedure"],
+        "Performance Metrics": ["performance", "metric", "measure", "indicator", "KPI", "target", "benchmark", "assessment", "evaluation", "report", "monitor"]
+    }
+    
+    # Extract headers and structure for context preservation
+    header_pattern = r'(?i)^\s*(?:ARTICLE|SECTION|CLAUSE|APPENDIX|EXHIBIT|SCHEDULE|ANNEX)\s+[\dIVXLC\.\-]+[ \.\:]+(.+?)$'
+    headers = re.findall(header_pattern, contract_text, re.MULTILINE)
+    
+    # Split the contract into paragraphs/sections
+    paragraphs = re.split(r'\n\s*\n', contract_text)
+    
+    # Identify relevant paragraphs based on focus areas
+    relevant_paragraphs = []
+    all_keywords = []
+    
+    # Collect all keywords for the selected focus areas
+    for area in focus_areas:
+        all_keywords.extend(focus_keywords.get(area, []))
+    
+    # Preserve key contract sections regardless of keywords
+    important_sections = ["party", "parties", "definition", "term", "termination", "payment", "confidentiality", 
+                          "liability", "warranty", "indemnification", "governing law", "jurisdiction", "dispute"]
+    important_pattern = r'(?i)\b(' + '|'.join(important_sections) + r')\b'
+    
+    # Preserve the first few paragraphs for context (contract intro, parties, etc.)
+    intro_paragraphs = min(10, len(paragraphs) // 10)  # Include about 10% as intro or at least 10 paragraphs
+    
+    # Track which paragraphs to include
+    paragraphs_to_include = set(range(intro_paragraphs))
+    
+    # Identify paragraphs with relevant keywords
+    for i, paragraph in enumerate(paragraphs):
+        # Always include paragraphs that look like headers or section titles
+        if re.search(header_pattern, paragraph, re.MULTILINE):
+            paragraphs_to_include.add(i)
+            # Also include the next paragraph after a header
+            if i+1 < len(paragraphs):
+                paragraphs_to_include.add(i+1)
+            continue
+        
+        # Check for important contract sections
+        if re.search(important_pattern, paragraph.lower()):
+            paragraphs_to_include.add(i)
+            continue
+            
+        # Check for focus area keywords
+        for keyword in all_keywords:
+            if keyword.lower() in paragraph.lower():
+                paragraphs_to_include.add(i)
+                # Also include the next paragraph for context
+                if i+1 < len(paragraphs):
+                    paragraphs_to_include.add(i+1)
+                break
+    
+    # Compile the optimized text
+    optimized_paragraphs = [paragraphs[i] for i in sorted(paragraphs_to_include)]
+    optimized_text = "\n\n".join(optimized_paragraphs)
+    
+    # If optimized text is too short, return the original
+    if len(optimized_text) < len(contract_text) * 0.3:
+        return contract_text[:25000]  # Limit to 25K chars as in the original function
+    
+    # Limit to 25K chars as in the original function
+    return optimized_text[:25000]
 
 def create_executive_summary(analysis_result, risk_analysis, contract1_name, contract2_name):
     """Generate an executive summary from the analysis results and risk assessment."""
@@ -325,21 +458,61 @@ def create_area_scorecards(risk_analysis):
     
     return content
 
+def robust_claude_api_call(client, prompt, system_prompt):
+    """Handle Claude API calls with robust error handling and retries"""
+    max_retries = 3
+    retry_count = 0
+    backoff_time = 2  # seconds
+    
+    while retry_count < max_retries:
+        try:
+            response = client.messages.create(
+                model=st.secrets["ANTHROPIC_MODEL"],
+                max_tokens=6000,
+                temperature=0.2,
+                system=system_prompt,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            return response
+        
+        except anthropic.APITimeoutError:
+            retry_count += 1
+            if retry_count >= max_retries:
+                raise Exception("API timeout after multiple retries. Please try again later.")
+            
+            time.sleep(backoff_time)
+            backoff_time *= 2  # Exponential backoff
+            
+        except anthropic.APIError as e:
+            if "rate limit" in str(e).lower():
+                retry_count += 1
+                if retry_count >= max_retries:
+                    raise Exception("Rate limit reached after multiple retries. Please try again later.")
+                
+                time.sleep(backoff_time)
+                backoff_time *= 2
+            else:
+                raise e
+        
+        except Exception as e:
+            # For other exceptions, don't retry
+            raise e
+
 def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus, custom_prompt, custom_weights=None):
     """Use Claude AI to compare contracts and generate insights with risk assessment."""
     
     client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
     
-    # Build context based on selected focus areas and custom instructions
-    context = "As a procurement expert specialising in IT services for ERP projects, create a detailed side-by-side comparison of these contracts "
-    
-    # Add selected focus areas
+    # Optimize contracts to focus on relevant sections (API call optimization)
     if analysis_focus:
-        context += "specifically focusing on the following aspects: " + ", ".join(analysis_focus) + ". "
-    
-    # Add custom instructions more prominently
-    if custom_prompt:
-        context += f"\n\nIMPORTANT CUSTOM INSTRUCTIONS: {custom_prompt}\n\n"
+        optimized_contract1 = optimize_contract_for_claude(contract1_text, analysis_focus)
+        optimized_contract2 = optimize_contract_for_claude(contract2_text, analysis_focus)
+    else:
+        # If no focus areas, use the original behavior
+        optimized_contract1 = contract1_text[:25000]
+        optimized_contract2 = contract2_text[:25000]
     
     # Create dimension mapping directly from focus areas
     scoring_dimensions = []
@@ -352,79 +525,197 @@ def compare_contracts_with_claude(contract1_text, contract2_text, analysis_focus
     # Add custom weights for scoring if provided
     weights_instruction = ""
     if custom_weights and isinstance(custom_weights, dict):
-        weights_instruction = "\n\nPlease use the following importance weights when evaluating these contracts: "
+        weights_instruction = "\n\nIMPORTANT - Use these specific importance weights when evaluating contracts: "
         for area, weight in custom_weights.items():
             weights_instruction += f"{area}: {weight}%; "
     
-    # Build the comparative scoring instruction
-    scoring_instruction = """
-For each dimension, follow this comparative scoring approach:
+    # Smarter Claude prompting - Updated system prompt
+    system_prompt = """You are an expert procurement analyst specializing in IT and ERP service contracts with 20+ years of experience. 
+Your task is to create a detailed, actionable comparison of contract terms with these key qualities:
+1. Precision - Use exact clause references and specific language
+2. Clarity - Highlight key differences for easy comparison
+3. Practical relevance - Focus on business impact, not just legal wording
+4. Balanced assessment - Objectively identify strengths and weaknesses in both contracts
+5. Clear scoring - Use concrete evidence to justify different scores for each dimension
+
+Format your analysis as a structured side-by-side comparison with clear sections. Use bullet points for readability and bold formatting to emphasize key differences. Write in clear, concise British English focused on practical implications."""
+
+    # Smarter Claude prompting - Enhanced dimension-specific guidance
+    dimension_guidance = {
+        "Pricing Structure": """
+- Compare base fees, variable costs, and total cost of ownership
+- Analyze payment schedules, terms, and conditions
+- Evaluate price adjustment mechanisms and inflators
+- Identify any hidden or contingent costs
+- Assess value for money and cost efficiency
+        """,
+        "Service Level Agreements": """
+- Compare specific performance metrics and their definitions
+- Analyze consequences of SLA breaches (credits, remedies)
+- Evaluate measurement and reporting mechanisms
+- Identify exclusions, force majeure, and planned downtime provisions
+- Assess enforceability and practical application of SLAs
+        """,
+        "Implementation Timeline": """
+- Compare key milestones, deadlines and dependencies
+- Evaluate specificity of project phases and deliverables
+- Analyze consequences of delays and remedies
+- Identify responsibility for delays and risk allocation
+- Assess realism and feasibility of proposed timelines
+        """,
+        "Scope of Work": """
+- Compare specific deliverables and their specifications
+- Analyze inclusivity vs. exclusivity of services
+- Evaluate clarity and thoroughness of requirements
+- Identify any gaps or ambiguities in scope definition
+- Assess alignment with business objectives
+        """,
+        "Maintenance & Support": """
+- Compare support levels, hours, and response times
+- Analyze upgrade and patch management provisions
+- Evaluate escalation procedures and priority levels
+- Identify long-term support commitments and constraints
+- Assess practical sufficiency for business operations
+        """,
+        "Data Security": """
+- Compare security standards and compliance frameworks
+- Analyze breach notification and response procedures
+- Evaluate data protection, backup and recovery provisions
+- Identify liability and indemnification for security issues
+- Assess adequacy for regulatory compliance
+        """,
+        "Exit Strategy": """
+- Compare termination rights, notice periods, and fees
+- Analyze transition services and knowledge transfer
+- Evaluate data return, migration, and deletion provisions
+- Identify potential lock-in issues or exit barriers
+- Assess practical feasibility of transition
+        """,
+        "Intellectual Property": """
+- Compare ownership rights to deliverables and data
+- Analyze license terms, restrictions, and usage rights
+- Evaluate protection of pre-existing IP and new developments
+- Identify potential conflicts or ambiguities in IP provisions
+- Assess alignment with business IP strategy
+        """,
+        "Change Management": """
+- Compare change request procedures and approvals
+- Analyze pricing mechanisms for changes and additions
+- Evaluate flexibility vs. rigidity in changing requirements
+- Identify constraints or limitations on changes
+- Assess practical workability of change processes
+        """,
+        "Performance Metrics": """
+- Compare specific KPIs, measurements, and monitoring
+- Analyze reporting requirements and cadence
+- Evaluate consequences of performance failures
+- Identify incentives for exceeding performance targets
+- Assess alignment with business success factors
+        """
+    }
+    
+    # Build dimension-specific instructions
+    dimension_instructions = ""
+    for area in scoring_dimensions:
+        dimension_instructions += f"\n\n{area}:\n{dimension_guidance.get(area, '- Analyze all relevant provisions thoroughly')}"
+    
+    # Smarter Claude prompting - Enhanced user prompt structure
+    prompt = f"""
+As an expert ERP contract analyst, create a detailed, actionable comparison of these two contracts.
+
+FOCUS AREAS: {', '.join(scoring_dimensions)}
+
+{custom_prompt if custom_prompt else ''}
+
+CONTRACT 1:
+{optimized_contract1}
+
+CONTRACT 2:
+{optimized_contract2}
+
+ANALYSIS INSTRUCTIONS:
+For each focus area, provide:
+1. A direct side-by-side comparison of equivalent provisions
+2. Specific clause references where possible (e.g., "Section 3.2")
+3. Clear identification of strengths and weaknesses
+4. Explicit mention of provisions present in one contract but missing in the other
+5. Bold formatting for significant differences or important terms
+
+FORMAT REQUIREMENTS:
+- Use this structure for each area:
+  ### [Topic Name]
+  #### Contract 1
+  - Key point 1
+  - Key point 2
+  
+  #### Contract 2
+  - Key point 1
+  - Key point 2
+
+DIMENSION-SPECIFIC GUIDANCE:{dimension_instructions}
+
+SCORING REQUIREMENTS:
+When scoring each dimension, follow this approach:
 1. First directly compare Contract 1 against Contract 2 for this dimension
 2. Assign scores on a 0-100 scale where:
    - 50 means both contracts are equal
    - >50 means Contract 1 is better (with 100 being Contract 1 is vastly superior)
    - <50 means Contract 2 is better (with 0 being Contract 2 is vastly superior)
 3. The difference between the scores should reflect the magnitude of advantage
-4. Example: If Contract 1 has slightly better pricing, you might score it 60/100, meaning it's 10 points better than Contract 2
+4. Example: If Contract 1 has slightly better pricing, score it 60/100, meaning it's 10 points better than Contract 2
+5. Ensure scores are differentiated based on actual content - avoid giving similar scores to all dimensions
+
+{weights_instruction}
+
+JSON OUTPUT:
+After your analysis, include a detailed risk assessment in JSON format enclosed in triple backticks with "json" language specifier:
+```json
+{{
+  "contract1_overall_score": 75,
+  "contract2_overall_score": 65,
+  "contract1_dimension_scores": {{
+    "Dimension Name 1": 80,
+    "Dimension Name 2": 70
+  }},
+  "contract2_dimension_scores": {{
+    "Dimension Name 1": 60,
+    "Dimension Name 2": 75
+  }},
+  "contract1_advantages": [
+    "Specific advantage 1",
+    "Specific advantage 2",
+    "Specific advantage 3"
+  ],
+  "contract1_disadvantages": [
+    "Specific disadvantage 1",
+    "Specific disadvantage 2",
+    "Specific disadvantage 3"
+  ],
+  "contract2_advantages": [
+    "Specific advantage 1",
+    "Specific advantage 2",
+    "Specific advantage 3"
+  ],
+  "contract2_disadvantages": [
+    "Specific disadvantage 1",
+    "Specific disadvantage 2",
+    "Specific disadvantage 3"
+  ],
+  "recommendation": "Clear, actionable recommendation based on analysis"
+}}
+```
+
+CRITICAL: For the JSON output:
+1. Use EXACTLY these dimension names: {', '.join(scoring_dimensions)}
+2. Ensure each focus area has corresponding scores in both contracts
+3. Make sure overall scores reflect the weighted importance of each dimension
+4. Provide at least 3 specific advantages and disadvantages for each contract
+5. Ensure your recommendation is clear and actionable
 """
     
-    # Enhanced prompt with risk assessment
-    prompt = f"""
-    {context}
-    
-    CONTRACT 1:
-    {contract1_text[:25000]}
-    
-    CONTRACT 2:
-    {contract2_text[:25000]}
-    
-    Create a structured side-by-side comparison with these requirements:
-    
-    1. Format the response as a clear side-by-side comparison for each selected topic
-    2. For each topic, use this structure:
-       ### [Topic Name]
-       #### Contract 1
-       - Key point 1
-       - Key point 2
-       
-       #### Contract 2
-       - Key point 1
-       - Key point 2
-    
-    3. Directly compare equivalent clauses and terms between the contracts - make sure each bullet point in Contract 1 has a corresponding bullet point in Contract 2 if possible
-    4. Bold any significant differences or important terms
-    5. For each topic, highlight strengths and weaknesses of each contract
-    6. If one contract has a provision that the other lacks, explicitly note this
-    7. Include specific clause references when possible
-    8. Focus ONLY on the selected topics/areas specified in the instructions
-    9. Use concise, clear British English focusing on the practical implications
-    10. End with a brief section highlighting the most critical differences that would impact decision-making
-    
-    ADDITIONAL TASK: After completing the comparison, provide a DETAILED risk assessment in JSON format enclosed in triple backticks with "json" language specifier. 
-    
-    Your JSON format risk assessment MUST include:
-    1. "contract1_overall_score" and "contract2_overall_score" (both 0-100)
-    2. "contract1_dimension_scores" and "contract2_dimension_scores" containing scores for EACH of these dimensions: {', '.join(scoring_dimensions)}
-    3. "recommendation" field with your final recommendation
-    4. "contract1_advantages" and "contract1_disadvantages" as arrays of strings
-    5. "contract2_advantages" and "contract2_disadvantages" as arrays of strings
-    6. IMPORTANT: For scores, use EXACTLY these dimension names: {', '.join(scoring_dimensions)}
-    7. CRITICAL: Make sure to differentiate scores - do NOT give the same score to all dimensions
-    
-    {scoring_instruction}
-    {weights_instruction}
-    """
-    
     try:
-        response = client.messages.create(
-            model=st.secrets["ANTHROPIC_MODEL"],
-            max_tokens=6000,
-            temperature=0.2,
-            system="You are an expert procurement analyst specialising in IT and ERP service contracts. Create a clear side-by-side comparison of contract terms, focused only on the specific topics requested. Format your response as a structured comparison with separate sections for each contract under each topic. Use bullet points and bold formatting for clarity and emphasis on key differences. Write in British English. For the risk assessment, you MUST assign different scores to different dimensions based on the actual content of the contracts. Always follow the custom instructions provided by the user. Be critical and detailed in your evaluation.",
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
+        # Use robust API call with retries
+        response = robust_claude_api_call(client, prompt, system_prompt)
         
         # Extract the main comparison text and the JSON risk assessment
         full_response = response.content[0].text
@@ -556,6 +847,46 @@ For each dimension, follow this comparative scoring approach:
         # Return a basic response and default risk analysis
         return "Error analyzing contracts. Please try again with different parameters or contact support.", default_risk_analysis
 
+def create_performance_metrics():
+    """Display performance metrics for the current analysis if available"""
+    
+    if 'performance_metrics' not in st.session_state:
+        return
+        
+    metrics = st.session_state.performance_metrics
+    
+    st.subheader("Performance Metrics")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric(
+            "Processing Time", 
+            f"{metrics.get('total_time', 0):.2f}s",
+            help="Total time to process and analyze contracts"
+        )
+    
+    with col2:
+        original_size = metrics.get('original_size', 0)
+        optimized_size = metrics.get('optimized_size', 0)
+        
+        if original_size > 0:
+            reduction = ((original_size - optimized_size) / original_size) * 100
+            st.metric(
+                "Token Reduction", 
+                f"{reduction:.1f}%",
+                help="Percentage reduction in text size after optimization"
+            )
+        else:
+            st.metric("Token Reduction", "N/A")
+    
+    with col3:
+        st.metric(
+            "Estimated Cost", 
+            f"${metrics.get('estimated_cost', 0):.4f}",
+            help="Estimated cost of API calls"
+        )
+
 def main():
     # App header
     st.markdown('<div style="font-size: 2.5rem; font-weight: bold; margin-bottom: 1rem;">ERP Contract Comparison Tool</div>', unsafe_allow_html=True)
@@ -566,6 +897,8 @@ def main():
         st.session_state.analysis_history = []
     if 'debug_json' not in st.session_state:
         st.session_state.debug_json = None
+    if 'performance_metrics' not in st.session_state:
+        st.session_state.performance_metrics = {}
     
     # Sidebar for settings
     with st.sidebar:
@@ -614,6 +947,14 @@ def main():
         if not analysis_focus and not custom_prompt:
             st.warning("⚠️ You must select at least one focus area or provide custom instructions")
         
+        # Advanced settings expander
+        with st.expander("Advanced Settings"):
+            st.checkbox("Enable performance metrics", key="enable_metrics", value=True,
+                        help="Show performance metrics like processing time and token usage")
+            
+            st.checkbox("Use parallel processing", key="use_parallel", value=True,
+                       help="Process contracts concurrently to save time")
+        
         st.markdown("## About")
         st.info("""
         This tool creates side-by-side comparisons of ERP service contracts with custom scoring.
@@ -624,6 +965,7 @@ def main():
         - Custom scoring for each comparison area
         - Risk assessment with color-coding
         - Executive summary with key insights
+        - Optimized contract processing for faster results
         """)
         
         # Data Privacy Note
@@ -638,11 +980,11 @@ def main():
         For more information about our data handling practices, please contact your IT administrator.
         """)
     
-    # Main interface
-    tab1, tab2, tab3 = st.tabs(["Contract Upload", "Comparison Results", "History"])
+    # Main interface with progressive disclosure
+    tabs = st.tabs(["Contract Upload", "Comparison Results", "Key Findings", "Technical Details", "History"])
     
     # Contract Upload Tab
-    with tab1:
+    with tabs[0]:
         st.markdown('<div style="font-size: 1.8rem; font-weight: bold; margin: 1.5rem 0 1rem 0; padding-bottom: 0.5rem; border-bottom: 2px solid #e0e0e0;">Upload Contracts for Comparison</div>', unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
@@ -681,8 +1023,17 @@ def main():
         
         if analyze_button and contract1_file and contract2_file and (analysis_focus or custom_prompt):
             with st.spinner("Creating enhanced comparison with custom scoring... This may take a moment..."):
-                contract1_text = extract_text(contract1_file)
-                contract2_text = extract_text(contract2_file)
+                start_time = time.time()
+                
+                # Extract contract text (potentially in parallel)
+                if st.session_state.get("use_parallel", True):
+                    contract1_text, contract2_text = process_contracts_concurrently(contract1_file, contract2_file)
+                else:
+                    contract1_text = extract_text(contract1_file)
+                    contract2_text = extract_text(contract2_file)
+                
+                # Track original text sizes for metrics
+                original_size = len(contract1_text) + len(contract2_text)
                 
                 # Default names if not provided
                 if not contract1_name:
@@ -699,6 +1050,32 @@ def main():
                     custom_weights if 'custom_weights' in locals() else None
                 )
                 
+                # Calculate performance metrics
+                end_time = time.time()
+                total_time = end_time - start_time
+                
+                # Get optimized size by running the optimizer
+                if analysis_focus:
+                    optimized_contract1 = optimize_contract_for_claude(contract1_text, analysis_focus)
+                    optimized_contract2 = optimize_contract_for_claude(contract2_text, analysis_focus)
+                    optimized_size = len(optimized_contract1) + len(optimized_contract2)
+                else:
+                    optimized_size = min(len(contract1_text), 25000) + min(len(contract2_text), 25000)
+                
+                # Estimate cost (very rough approximation)
+                # Claude 3 Opus is roughly $15 per 1M tokens, assuming ~4 chars per token
+                estimated_tokens = optimized_size / 4
+                estimated_cost = (estimated_tokens / 1000000) * 15
+                
+                # Store metrics
+                if st.session_state.get("enable_metrics", True):
+                    st.session_state.performance_metrics = {
+                        "total_time": total_time,
+                        "original_size": original_size,
+                        "optimized_size": optimized_size,
+                        "estimated_cost": estimated_cost
+                    }
+                
                 # Add to history
                 analysis_entry = {
                     'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -708,17 +1085,18 @@ def main():
                     'custom_prompt': custom_prompt,
                     'custom_weights': custom_weights if 'custom_weights' in locals() else {},
                     'result': analysis_result,
-                    'risk_analysis': risk_analysis
+                    'risk_analysis': risk_analysis,
+                    'performance_metrics': st.session_state.performance_metrics
                 }
                 st.session_state.analysis_history.append(analysis_entry)
                 st.session_state.current_analysis = analysis_entry
                 
-                # Switch to results tab
+                # Go to results tab
                 st.query_params["tab"] = "results"
                 st.rerun()
                 
-    # Comparison Results Tab
-    with tab2:
+    # Comparison Results Tab (Full detailed comparison)
+    with tabs[1]:
         if 'current_analysis' in st.session_state:
             analysis = st.session_state.current_analysis
             
@@ -733,6 +1111,11 @@ def main():
                     analysis['contract2_name']
                 )
                 st.markdown(exec_summary, unsafe_allow_html=True)
+            
+            # Show performance metrics if enabled
+            if st.session_state.get("enable_metrics", True) and 'performance_metrics' in analysis:
+                st.session_state.performance_metrics = analysis['performance_metrics']
+                create_performance_metrics()
             
             # Display comparison metadata
             metadata_col1, metadata_col2 = st.columns(2)
@@ -749,12 +1132,6 @@ def main():
                 st.markdown("---")
                 st.markdown(f"**Custom Analysis Instructions:**")
                 st.info(analysis['custom_prompt'])
-            
-            # Display custom area scoring if available
-            if 'risk_analysis' in analysis and analysis['risk_analysis']:
-                st.markdown("### Area Scoring")
-                area_scorecards = create_area_scorecards(analysis['risk_analysis'])
-                st.markdown(area_scorecards, unsafe_allow_html=True)
             
             # Process the comparison text into sections
             sections = re.split(r'### (.*?)(?:\n|$)', analysis['result'])
@@ -811,7 +1188,7 @@ def main():
                                 unique_to_1 = [b for b in bullets1 if b not in bullets2]
                                 if unique_to_1:
                                     for bullet in unique_to_1:
-                                        st.markdown(f"<div style='background-color: #ffebee; padding: 0.5rem; margin-bottom: 0.5rem; border-left: 3px solid #f44336;'>- {bullet}</div>", unsafe_allow_html=True)
+                                        st.markdown(f"<div class='unique-point-1'>- {bullet}</div>", unsafe_allow_html=True)
                                 else:
                                     st.markdown("*No unique points*")
                                     
@@ -820,7 +1197,7 @@ def main():
                                 unique_to_2 = [b for b in bullets2 if b not in bullets1]
                                 if unique_to_2:
                                     for bullet in unique_to_2:
-                                        st.markdown(f"<div style='background-color: #e8f5e9; padding: 0.5rem; margin-bottom: 0.5rem; border-left: 3px solid #4caf50;'>- {bullet}</div>", unsafe_allow_html=True)
+                                        st.markdown(f"<div class='unique-point-2'>- {bullet}</div>", unsafe_allow_html=True)
                                 else:
                                     st.markdown("*No unique points*")
                             
@@ -856,9 +1233,162 @@ def main():
                     )
         else:
             st.info("Upload contracts and select focus areas to generate an interactive side-by-side comparison")
+    
+    # Key Findings Tab (Simplified view with scores and key points)
+    with tabs[2]:
+        if 'current_analysis' in st.session_state:
+            analysis = st.session_state.current_analysis
+            
+            st.markdown(f'<div style="font-size: 1.8rem; font-weight: bold; margin: 1.5rem 0 1rem 0; padding-bottom: 0.5rem; border-bottom: 2px solid #e0e0e0;">Key Contract Findings</div>', unsafe_allow_html=True)
+            
+            if 'risk_analysis' in analysis and analysis['risk_analysis']:
+                # Display dimension scores
+                st.markdown("### Dimension Scores")
+                
+                # Get dimension scores
+                c1_dimensions = analysis['risk_analysis'].get('contract1_dimension_scores', {})
+                c2_dimensions = analysis['risk_analysis'].get('contract2_dimension_scores', {})
+                
+                # Display scores using Streamlit metrics and progress bars
+                for dimension in analysis['focus_areas']:
+                    # Find the dimension with potential different casing
+                    dim_to_use = None
+                    for existing_dim in c1_dimensions.keys():
+                        if normalize_dimension_name(dimension) == normalize_dimension_name(existing_dim):
+                            dim_to_use = existing_dim
+                            break
+                    
+                    if not dim_to_use:
+                        continue
+                        
+                    c1_score = c1_dimensions.get(dim_to_use, 0)
+                    c2_score = c2_dimensions.get(dim_to_use, 0)
+                    
+                    # Format pretty display name
+                    display_name = ' '.join(word.capitalize() for word in dimension.replace('_', ' ').split())
+                    st.markdown(f"#### {display_name}")
+                    
+                    # Create two columns for the scores
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        # Show the score with delta from average or from the other contract
+                        delta = c1_score - 50 if abs(c1_score - 50) > abs(c1_score - c2_score) else c1_score - c2_score
+                        st.metric(
+                            f"{analysis['contract1_name']}", 
+                            f"{c1_score}/100",
+                            delta=delta if delta != 0 else None,
+                            delta_color="normal"
+                        )
+                        st.progress(c1_score/100)
+                    
+                    with col2:
+                        delta = c2_score - 50 if abs(c2_score - 50) > abs(c2_score - c1_score) else c2_score - c1_score
+                        st.metric(
+                            f"{analysis['contract2_name']}", 
+                            f"{c2_score}/100",
+                            delta=delta if delta != 0 else None,
+                            delta_color="normal"
+                        )
+                        st.progress(c2_score/100)
+                
+                # Display recommendation
+                st.markdown("### Recommendation")
+                recommendation = analysis['risk_analysis'].get('recommendation', 'Further detailed analysis recommended.')
+                st.info(recommendation)
+                
+                # Display key advantages and disadvantages
+                st.markdown("### Key Contract Points")
+                
+                adv_col1, adv_col2 = st.columns(2)
+                
+                with adv_col1:
+                    st.markdown(f"#### {analysis['contract1_name']} Highlights")
+                    
+                    st.markdown("**Advantages:**")
+                    advantages = analysis['risk_analysis'].get('contract1_advantages', [])
+                    for adv in advantages:
+                        st.markdown(f"- {adv}")
+                    
+                    st.markdown("**Disadvantages:**")
+                    disadvantages = analysis['risk_analysis'].get('contract1_disadvantages', [])
+                    for disadv in disadvantages:
+                        st.markdown(f"- {disadv}")
+                
+                with adv_col2:
+                    st.markdown(f"#### {analysis['contract2_name']} Highlights")
+                    
+                    st.markdown("**Advantages:**")
+                    advantages = analysis['risk_analysis'].get('contract2_advantages', [])
+                    for adv in advantages:
+                        st.markdown(f"- {adv}")
+                    
+                    st.markdown("**Disadvantages:**")
+                    disadvantages = analysis['risk_analysis'].get('contract2_disadvantages', [])
+                    for disadv in disadvantages:
+                        st.markdown(f"- {disadv}")
+            else:
+                st.warning("No analysis data available. Please go to the Contract Upload tab and compare contracts.")
+    
+    # Technical Details Tab
+    with tabs[3]:
+        if 'current_analysis' in st.session_state:
+            analysis = st.session_state.current_analysis
+            
+            st.markdown(f'<div style="font-size: 1.8rem; font-weight: bold; margin: 1.5rem 0 1rem 0; padding-bottom: 0.5rem; border-bottom: 2px solid #e0e0e0;">Technical Details</div>', unsafe_allow_html=True)
+            
+            # Performance metrics in more detail
+            if st.session_state.get("enable_metrics", True) and 'performance_metrics' in analysis:
+                st.session_state.performance_metrics = analysis.get('performance_metrics', {})
+                metrics = st.session_state.performance_metrics
+                
+                st.markdown("### Performance Metrics")
+                
+                metrics_cols = st.columns(3)
+                with metrics_cols[0]:
+                    st.metric("Processing Time", f"{metrics.get('total_time', 0):.2f}s")
+                
+                with metrics_cols[1]:
+                    original_chars = metrics.get('original_size', 0)
+                    optimized_chars = metrics.get('optimized_size', 0)
+                    st.metric("Original Size", f"{original_chars:,} chars")
+                    
+                with metrics_cols[2]:
+                    st.metric("Optimized Size", f"{optimized_chars:,} chars")
+                
+                # Add more detailed metrics
+                if original_chars > 0:
+                    reduction = ((original_chars - optimized_chars) / original_chars) * 100
+                    st.progress(reduction/100)
+                    st.markdown(f"**Text Reduction:** {reduction:.1f}% ({original_chars:,} → {optimized_chars:,} chars)")
+                
+                if 'estimated_cost' in metrics:
+                    st.markdown(f"**Estimated API Cost:** ${metrics.get('estimated_cost', 0):.4f}")
+            
+            # Display the raw JSON from Claude
+            st.markdown("### Raw Analysis Data (JSON)")
+            
+            if 'risk_analysis' in analysis:
+                with st.expander("Show Raw JSON"):
+                    st.json(analysis['risk_analysis'])
+            
+            # Add system information
+            st.markdown("### System Information")
+            
+            system_info = {
+                "App Version": "2.1.0",
+                "Streamlit Version": st.__version__,
+                "API Model": st.secrets.get("ANTHROPIC_MODEL", "claude-3-opus-20240229"),
+                "Python Version": "3.9+",
+                "Analysis Timestamp": analysis.get('timestamp', 'Unknown')
+            }
+            
+            st.json(system_info)
+        else:
+            st.warning("No analysis data available. Please go to the Contract Upload tab and compare contracts.")
             
     # History Tab
-    with tab3:
+    with tabs[4]:
         st.markdown('<div style="font-size: 1.8rem; font-weight: bold; margin: 1.5rem 0 1rem 0; padding-bottom: 0.5rem; border-bottom: 2px solid #e0e0e0;">Comparison History</div>', unsafe_allow_html=True)
         
         if st.session_state.analysis_history:
@@ -878,11 +1408,24 @@ def main():
                     preview_length = min(500, len(analysis['result']))
                     st.markdown(analysis['result'][:preview_length] + "..." if len(analysis['result']) > preview_length else analysis['result'])
                     
-                    # Button to view this comparison
-                    if st.button(f"View Full Comparison", key=f"view_{i}"):
-                        st.session_state.current_analysis = analysis
-                        st.query_params["tab"] = "results"
-                        st.rerun()
+                    # Row of buttons
+                    col1, col2, col3 = st.columns([1, 1, 2])
+                    
+                    with col1:
+                        # Button to view this comparison
+                        if st.button(f"View Full Comparison", key=f"view_{i}"):
+                            st.session_state.current_analysis = analysis
+                            st.query_params["tab"] = "results"
+                            st.rerun()
+                    
+                    with col2:
+                        # Button to view key findings
+                        if st.button(f"View Key Findings", key=f"findings_{i}"):
+                            st.session_state.current_analysis = analysis
+                            st.query_params["tab"] = "key_findings"
+                            st.rerun()
+                    
+                    # Add more action buttons if needed
         else:
             st.info("Your comparison history will appear here")
 
